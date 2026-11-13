@@ -45,7 +45,7 @@ class MyApplication : Application() {
         instance = this
         NotificationUtils.createChannels(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle) = Unit
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
             override fun onActivityResumed(activity: Activity) {
                 reconcileReceiver()
                 ShakeToShare.onActivityResumed(activity)

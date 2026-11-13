@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -254,7 +255,8 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
         }
         val deviceId = task.device.id
         var ok = false
-        while (isActive && allianceBusy) {
+        val pollJob = currentCoroutineContext()[Job]
+        while (pollJob?.isActive == true && allianceBusy) {
             val live = TransferUiCoordinator.states.value[deviceId]?.takeIf { it.taskId == task.id }
             if (live != null) {
                 when (live.status) {

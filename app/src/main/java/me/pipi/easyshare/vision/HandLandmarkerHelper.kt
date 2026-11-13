@@ -2,7 +2,7 @@ package me.pipi.easyshare.vision
 
 import android.content.Context
 import android.util.Log
-import com.google.mediapipe.framework.image.MPMediaImage
+import com.google.mediapipe.framework.image.MediaImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -57,7 +57,7 @@ class HandLandmarkerHelper(
     fun detectAsync(image: android.media.Image, timestampMillis: Long) {
         val landmarker = landmarker ?: return
         try {
-            landmarker.detectAsync(MPMediaImage(image), timestampMillis)
+            landmarker.detectAsync(MediaImageBuilder(image).build(), timestampMillis)
         } catch (error: Exception) {
             Log.w(TAG, "detectAsync failed", error)
         }

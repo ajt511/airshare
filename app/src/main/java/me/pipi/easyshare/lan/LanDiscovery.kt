@@ -68,8 +68,11 @@ class LanDiscovery(private val context: Context) {
         val wifi = context.getSystemService(WifiManager::class.java)
         @Suppress("DEPRECATION")
         val dhcp = wifi.dhcpInfo
-        if (dhcp != null) {
-            val broadcast = (dhcp.ip and dhcp.netmask) or (dhcp.netmask.inv() and 0xFFFFFFFFL.toInt())
+        if (dhcp != null && dhcp.ipAddress != 0) {
+            val ip = dhcp.ipAddress
+            val mask = dhcp.netmask
+            // Broadcast = network address | host part (bitwise NOT of the netmask).
+            val broadcast = (ip and mask) or mask.inv()
             InetAddress.getByAddress(
                 byteArrayOf(
                     (broadcast and 0xFF).toByte(),

@@ -120,10 +120,9 @@ class GestureTransferActivity : ComponentActivity() {
                         onStepSelection = viewModel::stepSelection,
                     )
                 }
+                BackHandler { finish() }
             }
         }
-
-        BackHandler { finish() }
     }
 
     override fun onStart() {
@@ -238,7 +237,7 @@ class GestureTransferActivity : ComponentActivity() {
         val uris = ArrayList<Uri>()
         intent.getParcelableArrayListExtra<Uri>(EXTRA_FILE_URIS)?.let(uris::addAll)
         if (uris.isEmpty() && intent.action == Intent.ACTION_SEND) {
-            intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let(uris.add(it))
+            intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uris.add(it) }
         }
         return uris.mapNotNull { uri ->
             runCatching { FileInfoFactory.fromUri(this, uri) }.getOrNull()
@@ -289,7 +288,7 @@ fun GestureCameraPreview(
                         preview,
                     )
                 } catch (error: Exception) {
-                    Log.w(TAG, "Preview bind failed", error)
+                    Log.w("GestureCamera", "Preview bind failed", error)
                 }
             }, ContextCompat.getMainExecutor(view.context))
         },

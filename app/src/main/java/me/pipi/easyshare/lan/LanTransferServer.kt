@@ -58,9 +58,9 @@ class LanTransferServer(private val context: Context) {
             try {
                 val engine = embeddedServer(Netty, port = PORT, host = "0.0.0.0") {
                     routing {
-                        post("/airshare/prepare") { call -> handlePrepare(call) }
-                        post("/airshare/file/{taskId}/{index}") { call -> handleFile(call) }
-                        post("/airshare/complete") { call -> handleComplete(call) }
+                        post("/airshare/prepare") { handlePrepare(call) }
+                        post("/airshare/file/{taskId}/{index}") { handleFile(call) }
+                        post("/airshare/complete") { handleComplete(call) }
                     }
                 }
                 server = engine
@@ -130,9 +130,13 @@ class LanTransferServer(private val context: Context) {
     private suspend fun handleFile(call: ApplicationCall) {
         val taskId = call.parameters["taskId"]?.toIntOrNull()
         val index = call.parameters["index"]?.toIntOrNull()
+        if (taskId == null || index == null) {
+            call.respondText("no session", status = HttpStatusCode.NotFound)
+            return
+        }
         val session = sessions[taskId]
         val meta = session?.meta?.files?.getOrNull(index)
-        if (taskId == null || index == null || session == null || meta == null) {
+        if (session == null || meta == null) {
             call.respondText("no session", status = HttpStatusCode.NotFound)
             return
         }
@@ -158,7 +162,7 @@ class LanTransferServer(private val context: Context) {
             session.files += received
             call.respondText("ok")
         } else {
-            call.respondText("save failed", HttpStatusCode.InternalServerError)
+            call.respondText("save failed", status = HttpStatusCode.InternalServerError)
         }
     }
 
@@ -194,14 +198,14 @@ class LanTransferServer(private val context: Context) {
         call.respondText("ok")
     }
 
-    private fun respondPrepare(call: ApplicationCall, response: LanPrepareResponse) {
+    private suspend fun respondPrepare(call: ApplicationCall, response: LanPrepareResponse) {
         call.respondText(
             LanProtocol.json.encodeToString(LanPrepareResponse.serializer(), response),
             ContentType.Application.Json,
         )
     }
 
-    private fun saveStream(
+    private suspend fun saveStream(
         session: LanSession,
         meta: LanFileMeta,
         input: ByteReadChannel,
@@ -264,7 +268,7 @@ class LanTransferServer(private val context: Context) {
         const val PORT = 48889
         private const val REQUEST_TIMEOUT_MILLIS = 30_000L
         private const val DEFAULT_BUFFER_SIZE = 64 * 1024
-        private const val DEFAULT_DOWNLOAD_RELATIVE_PATH =
+        private val DEFAULT_DOWNLOAD_RELATIVE_PATH =
             "${Environment.DIRECTORY_DOWNLOADS}/Easy Share"
     }
 }

@@ -36,7 +36,12 @@ object ShakeToShare : SensorEventListener {
         val manager = activity.getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return
         val accelerometer = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
         if (detector == null) {
-            detector = ShakeDetector { onShake() }
+            detector = ShakeDetector(
+                ShakeDetector.Config(),
+                object : ShakeDetector.Listener {
+                    override fun onShake() = this@ShakeToShare.onShake()
+                },
+            )
         }
         try {
             manager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
