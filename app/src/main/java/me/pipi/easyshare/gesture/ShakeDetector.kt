@@ -64,7 +64,8 @@ class ShakeDetector(
     }
 
     companion object {
-        /** Gravity-free magnitude for raw (x, y, z) values that still include gravity. */
-        fun magnitude(x: Float, y: Float, z: Float): Float = sqrt(x * x + y * y + z * z) - 9.81f
+        /** Gravity-free magnitude for raw (x, y, z) values that still include gravity; never negative. */
+        fun magnitude(x: Float, y: Float, z: Float): Float =
+            maxOf(0f, sqrt(x * x + y * y + z * z) - 9.81f)
     }
 }
