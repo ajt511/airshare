@@ -1,0 +1,27 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing material must never be committed.
+*.jks
+*.keystore
+*.p12
+keystore.properties
+signing.properties
+
+# Large MediaPipe model is fetched by CI / local build script, never committed.
+app/src/main/assets/hand_landmarker.task
+
+# Generated Android packages and local verification artifacts.
+*.apk
+*.aab
+/app/release/
+/release/
+/verification/
+*.log

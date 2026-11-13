@@ -1,0 +1,217 @@
+name: Android CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish a GitHub Release from main
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Test, lint and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"
+
+      - name: Download MediaPipe hand landmarker model
+        run: |
+          mkdir -p app/src/main/assets
+          curl -fL --retry 3 --retry-delay 3 \
+            -o app/src/main/assets/hand_landmarker.task \
+            https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task
+          ls -la app/src/main/assets/
+
+      - name: Run tests and lint
+        run: ./gradlew testReleaseUnitTest lintRelease --no-daemon
+
+      - name: Verify release compilation for pull request
+        if: github.event_name == 'pull_request'
+        run: ./gradlew compileReleaseKotlin processReleaseResources minifyReleaseWithR8 --no-daemon
+
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verification-reports
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-release.*
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Build and sign release APKs
+        if: github.event_name != 'pull_request'
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          signing_dir="$(mktemp -d "$RUNNER_TEMP/airshare-signing.XXXXXX")"
+          trap 'rm -rf "$signing_dir"' EXIT
+          keystore_path="$signing_dir/release.jks"
+          build_tools="$ANDROID_HOME/build-tools/37.0.0"
+
+          if [ -n "${SIGNING_KEYSTORE_BASE64:-}" ] && [ -n "${SIGNING_STORE_PASSWORD:-}" ] \
+             && [ -n "${SIGNING_KEY_PASSWORD:-}" ] && [ -n "${SIGNING_KEY_ALIAS:-}" ]; then
+            echo "Using provided official signing identity"
+            printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          else
+            echo "No SIGNING_* secrets configured; generating an ephemeral keystore for this fork."
+            keytool -genkeypair -v \
+              -keystore "$keystore_path" \
+              -storepass airshare-store -keypass airshare-key \
+              -alias airshare -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=AirShare, OU=Fork, O=AirShare"
+            export SIGNING_STORE_PASSWORD=airshare-store
+            export SIGNING_KEY_PASSWORD=airshare-key
+            export SIGNING_KEY_ALIAS=airshare
+          fi
+          chmod 600 "$keystore_path"
+          export SIGNING_KEYSTORE_PATH="$keystore_path"
+
+          ./gradlew assembleRelease --no-daemon
+
+          universal_apk="app/build/outputs/apk/release/app-universal-release.apk"
+          arm64_apk="app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+          test -f "$universal_apk"
+          test -f "$arm64_apk"
+
+          mkdir -p release
+          cp "$universal_apk" release/airshare-universal.apk
+          cp "$arm64_apk" release/airshare-arm64.apk
+
+          rm -f "$keystore_path"
+          unset SIGNING_KEYSTORE_PATH SIGNING_KEYSTORE_BASE64
+          unset SIGNING_STORE_PASSWORD SIGNING_KEY_PASSWORD SIGNING_KEY_ALIAS
+
+          "$build_tools/apksigner" verify --verbose release/airshare-universal.apk
+          "$build_tools/apksigner" verify --verbose release/airshare-arm64.apk
+          (cd release && sha256sum airshare-*.apk > SHA256SUMS)
+
+      - name: Upload signed APKs
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: airshare-${{ github.ref_name }}
+          path: |
+            release/airshare-universal.apk
+            release/airshare-arm64.apk
+            release/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download signed APKs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: airshare-main
+          path: release
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_name="$(
+            sed -nE \
+              's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+              app/build.gradle.kts
+          )"
+          test -n "$version_name"
+          test "$(printf '%s\n' "$version_name" | wc -l)" -eq 1
+          grep -Fxq "## $version_name" CHANGELOG.md
+          printf 'tag=v%s\n' "$version_name" >> "$GITHUB_OUTPUT"
+
+      - name: Create version tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; skipping publication."
+            exit 0
+          fi
+
+          tag_needs_creation=true
+          if existing_tag="$(
+            gh api \
+              "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+              --jq '[.object.type, .object.sha] | @tsv' 2>/dev/null
+          )"; then
+            IFS=$'\t' read -r object_type object_sha <<< "$existing_tag"
+            if [[ "$object_type" == "commit" && "$object_sha" == "$GITHUB_SHA" ]]; then
+              tag_needs_creation=false
+            else
+              echo "Replacing incomplete release tag: $RELEASE_TAG"
+              gh api \
+                --method DELETE \
+                "repos/$GITHUB_REPOSITORY/git/refs/tags/$RELEASE_TAG"
+            fi
+          fi
+
+          if [[ "$tag_needs_creation" == "true" ]]; then
+            gh api \
+              --method POST \
+              "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$RELEASE_TAG" \
+              -f sha="$GITHUB_SHA" >/dev/null
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            release/airshare-universal.apk \
+            release/airshare-arm64.apk \
+            release/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --notes-file CHANGELOG.md \
+            --title "AirShare $RELEASE_TAG"
