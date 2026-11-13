@@ -184,4 +184,12 @@
     <string name="photo_gesture_service_desc">检测图片浏览和文件选择行为，以便提供隔空手势发送</string>
     <string name="photo_gesture_pill_text">🖐 图片/文件模式 · 点按开始手势发送</string>
     <string name="photo_gesture_enable_hint">请在列表中开启「手势互传」的无障碍服务，然后返回本应用</string>
+    <string name="compat_beta_title">设备兼容（测试版）· %1$s</string>
+    <string name="compat_beta_summary">针对激进 ROM 的引导：自启动、省电策略、后台弹窗。测试版——部分入口可能与你的 ROM 版本不完全一致</string>
+    <string name="compat_autostart_title">自启动设置</string>
+    <string name="compat_autostart_summary">允许手势互传自启动，保证后台接收持续可用</string>
+    <string name="compat_battery_title">电池优化</string>
+    <string name="compat_battery_summary">将手势互传加入电池优化白名单，防止后台接收被系统杀掉</string>
+    <string name="compat_popup_title">后台弹出界面</string>
+    <string name="compat_popup_summary">仅 MIUI/澎湃OS：允许手势互传在其他应用上层显示手势界面</string>
 </resources>

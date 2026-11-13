@@ -116,6 +116,7 @@ fun MainScreen(
     onRequestVendorBattery: () -> Unit = {},
     onPhotoGestureChanged: (Boolean) -> Unit = {},
     onPhotoGestureSetup: () -> Unit = {},
+    onCompatAction: (String) -> Unit = {},
 ) {
     var showNameDialog by rememberSaveable { mutableStateOf(false) }
     var showBrandDialog by rememberSaveable { mutableStateOf(false) }
@@ -203,6 +204,37 @@ fun MainScreen(
                 summary = stringResource(R.string.capture_logs_desc),
                 onClick = onCaptureLogs,
             )
+        }
+        Spacer(Modifier.height(20.dp))
+        SettingsCard {
+            NativeSettingItem(
+                title = stringResource(
+                    R.string.compat_beta_title,
+                    state.vendorDisplayName,
+                ),
+                summary = stringResource(R.string.compat_beta_summary),
+                onClick = {},
+            )
+            SettingDivider()
+            NativeSettingItem(
+                title = stringResource(R.string.compat_autostart_title),
+                summary = stringResource(R.string.compat_autostart_summary),
+                onClick = { onCompatAction("autostart") },
+            )
+            SettingDivider()
+            NativeSettingItem(
+                title = stringResource(R.string.compat_battery_title),
+                summary = stringResource(R.string.compat_battery_summary),
+                onClick = { onCompatAction("battery") },
+            )
+            if (state.showBackgroundPopupRow) {
+                SettingDivider()
+                NativeSettingItem(
+                    title = stringResource(R.string.compat_popup_title),
+                    summary = stringResource(R.string.compat_popup_summary),
+                    onClick = { onCompatAction("popup") },
+                )
+            }
         }
         Spacer(Modifier.height(20.dp))
         SettingsCard {

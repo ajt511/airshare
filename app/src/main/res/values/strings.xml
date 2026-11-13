@@ -189,4 +189,12 @@
     <string name="photo_gesture_service_desc">Detects image browsing and file picking to offer GestureShare gesture sending</string>
     <string name="photo_gesture_pill_text">🖐 Photo/file mode · tap to send with gesture</string>
     <string name="photo_gesture_enable_hint">Enable the GestureShare accessibility service, then return here</string>
+    <string name="compat_beta_title">Device compatibility (beta) · %1$s</string>
+    <string name="compat_beta_summary">Guides for aggressive ROMs: autostart, battery, background pop-up. Beta — some entries may not match your ROM build</string>
+    <string name="compat_autostart_title">Autostart settings</string>
+    <string name="compat_autostart_summary">Allow GestureShare to launch itself so background receiving keeps working</string>
+    <string name="compat_battery_title">Battery optimization</string>
+    <string name="compat_battery_summary">Exempt GestureShare so the system does not stop background receiving</string>
+    <string name="compat_popup_title">Background pop-up interface</string>
+    <string name="compat_popup_summary">MIUI/HyperOS only: allow GestureShare to show its gesture screen over other apps</string>
 </resources>

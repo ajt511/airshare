@@ -8,69 +8,149 @@ import android.os.PowerManager
 import android.provider.Settings
 
 /**
- * Best-effort jumps into MIUI / ColorOS (and other vendors') autostart and
- * battery screens so the receiver survives the aggressive background rules
- * on Xiaomi and OPPO phones. Every lookup degrades to the app details page.
+ * Vendor detection and ROM-specific settings navigation for the
+ * device-compatibility (beta) section. Covers Xiaomi 澎湃OS/HyperOS/MIUI,
+ * OPPO ColorOS, Huawei/Honor HarmonyOS 4.x (Android-based), and falls back
+ * to generic Android pages everywhere else. Every jump degrades gracefully
+ * to the app details page when a component is missing on the ROM build.
  */
 object VendorCompat {
-    data class VendorHints(
-        val titleRes: Int,
-        val bodyRes: Int,
+    enum class Vendor { MIUI_HYPEROS, COLOROS, HARMONYOS, GENERIC }
+
+    data class VendorInfo(
+        val vendor: Vendor,
+        /** Human-readable ROM name, e.g. 澎湃OS / ColorOS / HarmonyOS. */
+        val displayName: String,
+        /** ROM version string when detectable (prop value), else null. */
+        val versionName: String?,
     )
 
-    fun vendorName(context: Context): String {
-        val brand = android.os.Build.BRAND.lowercase()
+    /** Compatibility guide actions the settings screen can offer. */
+    enum class Action(val id: String) {
+        AUTOSTART("autostart"),
+        BATTERY("battery"),
+        BACKGROUND_POPUP("popup"),
+    }
+
+    /**
+     * Detects the vendor from brand + ROM properties. [propReader] is
+     * injected so JVM unit tests can drive it; on device it reflects into
+     * android.os.SystemProperties (non-SDK API — always try-caught).
+     */
+    fun detectVendor(
+        brand: String = android.os.Build.BRAND,
+        propReader: (String) -> String? = ::systemProperty,
+    ): VendorInfo {
+        val b = brand.lowercase()
         return when {
-            brand in setOf("xiaomi", "redmi", "poco") -> "MIUI / HyperOS"
-            brand in setOf("oppo", "oneplus", "realme") -> "ColorOS"
-            brand == "vivo" || brand == "iqoo" -> "OriginOS / FuntouchOS"
-            brand in setOf("honor", "huawei") -> "HarmonyOS / EMUI"
-            else -> android.os.Build.BRAND
+            b in setOf("xiaomi", "redmi", "poco") -> {
+                // 澎湃OS reports ro.mi.os.version.name; legacy MIUI uses ro.miui.ui.version.name.
+                val os = propReader("ro.mi.os.version.name")
+                val miui = propReader("ro.miui.ui.version.name")
+                if (!os.isNullOrBlank()) {
+                    VendorInfo(Vendor.MIUI_HYPEROS, "澎湃OS", os)
+                } else if (!miui.isNullOrBlank()) {
+                    VendorInfo(Vendor.MIUI_HYPEROS, "MIUI", miui)
+                } else {
+                    VendorInfo(Vendor.MIUI_HYPEROS, "MIUI / HyperOS", null)
+                }
+            }
+            b in setOf("oppo", "oneplus", "realme") -> {
+                val os = propReader("ro.build.version.oplusrom")
+                    ?: propReader("ro.build.version.oppo")
+                VendorInfo(Vendor.COLOROS, "ColorOS", os)
+            }
+            b in setOf("huawei", "harmony") -> {
+                val os = propReader("ro.build.version.harmonyos")
+                    ?: propReader("hw_sc.build.platform.version")
+                VendorInfo(Vendor.HARMONYOS, "HarmonyOS", os)
+            }
+            b == "honor" -> {
+                VendorInfo(Vendor.HARMONYOS, "Magic OS / HarmonyOS", null)
+            }
+            else -> VendorInfo(Vendor.GENERIC, brand.ifBlank { "Android" }, null)
         }
     }
 
+    private fun systemProperty(key: String): String? = try {
+        val clazz = Class.forName("android.os.SystemProperties")
+        val get = clazz.getMethod("get", String::class.java)
+        (get.invoke(null, key) as? String)?.takeIf { it.isNotBlank() }
+    } catch (_: Throwable) {
+        null
+    }
+
+    /** Autostart manager entry points, newest ROMs first. */
+    fun autostartCandidates(vendor: Vendor): List<ComponentName> = when (vendor) {
+        Vendor.MIUI_HYPEROS -> listOf(
+            ComponentName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.autostart.AutoStartManagementActivity",
+            ),
+            ComponentName(
+                "com.miui.securitycenter",
+                "com.miui.powercenter.autostart.AutoStartManagementActivity",
+            ),
+        )
+        Vendor.COLOROS -> listOf(
+            ComponentName(
+                "com.coloros.safecenter",
+                "com.coloros.safecenter.permission.startup.StartupAppListActivity",
+            ),
+            ComponentName(
+                "com.oplus.battery",
+                "com.oplus.battery.StartupAppListActivity",
+            ),
+            ComponentName(
+                "com.oppo.safe",
+                "com.oppo.safe.permission.startup.StartupAppListActivity",
+            ),
+        )
+        Vendor.HARMONYOS -> listOf(
+            ComponentName(
+                "com.huawei.systemmanager",
+                "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+            ),
+            ComponentName(
+                "com.huawei.systemmanager",
+                "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity",
+            ),
+        )
+        Vendor.GENERIC -> emptyList()
+    }
+
+    /**
+     * MIUI/HyperOS-only: the separate "background pop-up interface" gate
+     * that governs launching our overlay screen from behind other apps.
+     * Landed inside the permission editor; no stable public intent exists,
+     * so we try the known components and fall back to app details.
+     */
+    fun backgroundPopupCandidates(vendor: Vendor): List<ComponentName> = when (vendor) {
+        Vendor.MIUI_HYPEROS -> listOf(
+            ComponentName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.permissions.PermissionsEditorActivity",
+            ),
+            ComponentName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.permissions.MainPermissionDetailsActivity",
+            ),
+        )
+        else -> emptyList()
+    }
+
     /** Opens this vendor's autostart manager, or the app details page as fallback. */
-    fun openAutoStartSettings(context: Context): Boolean {
-        val brand = android.os.Build.BRAND.lowercase()
-        val candidates: List<ComponentName> = when {
-            brand in setOf("xiaomi", "redmi", "poco") -> listOf(
-                ComponentName(
-                    "com.miui.securitycenter",
-                    "com.miui.permcenter.autostart.AutoStartManagementActivity",
-                ),
-                ComponentName(
-                    "com.miui.securitycenter",
-                    "com.miui.powercenter.autostart.AutoStartManagementActivity",
-                ),
-            )
-            brand in setOf("oppo", "oneplus", "realme") -> listOf(
-                ComponentName(
-                    "com.coloros.safecenter",
-                    "com.coloros.safecenter.permission.startup.StartupAppListActivity",
-                ),
-                ComponentName(
-                    "com.oplus.battery",
-                    "com.oplus.battery.StartupAppListActivity",
-                ),
-                ComponentName(
-                    "com.oppo.safe",
-                    "com.oppo.safe.permission.startup.StartupAppListActivity",
-                ),
-            )
-            brand == "vivo" || brand == "iqoo" -> listOf(
-                ComponentName(
-                    "com.vivo.permissionmanager",
-                    "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
-                ),
-            )
-            brand in setOf("honor", "huawei") -> listOf(
-                ComponentName(
-                    "com.huawei.systemmanager",
-                    "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
-                ),
-            )
-            else -> emptyList()
-        }
+    fun openAutoStartSettings(context: Context): Boolean =
+        openFirstAvailable(context, autostartCandidates(detectVendor().vendor))
+
+    /** Opens the MIUI background pop-up gate when on Xiaomi; false otherwise. */
+    fun openBackgroundPopupSettings(context: Context): Boolean {
+        val vendor = detectVendor().vendor
+        if (vendor != Vendor.MIUI_HYPEROS) return false
+        return openFirstAvailable(context, backgroundPopupCandidates(vendor))
+    }
+
+    private fun openFirstAvailable(context: Context, candidates: List<ComponentName>): Boolean {
         for (component in candidates) {
             try {
                 context.startActivity(

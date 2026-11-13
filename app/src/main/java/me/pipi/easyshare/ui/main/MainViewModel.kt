@@ -56,6 +56,8 @@ data class MainUiState(
     val ignoringBatteryOptimizations: Boolean = true,
     val photoGesture: Boolean = false,
     val photoGestureReady: Boolean = false,
+    val vendorDisplayName: String = "",
+    val showBackgroundPopupRow: Boolean = false,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -63,6 +65,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         get() = getApplication()
     private val settings = AppSettings(context)
     private var enableEnhancedModeAfterPermission = false
+
+    private val vendorInfo = me.pipi.easyshare.compat.VendorCompat.detectVendor()
 
     private val _state = MutableStateFlow(
         MainUiState(
@@ -85,6 +89,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .isIgnoringBatteryOptimizations(context),
             photoGesture = settings.photoGestureEnabled,
             photoGestureReady = isPhotoGestureReady(),
+            vendorDisplayName = vendorInfo.displayName,
+            showBackgroundPopupRow = vendorInfo.vendor == me.pipi.easyshare.compat.VendorCompat.Vendor.MIUI_HYPEROS,
         )
     )
     val state: StateFlow<MainUiState> = _state.asStateFlow()

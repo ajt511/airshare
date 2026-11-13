@@ -125,6 +125,16 @@ class MainActivity : ComponentActivity() {
                     },
                     onPhotoGestureChanged = ::setPhotoGesture,
                     onPhotoGestureSetup = ::startPhotoGestureSetup,
+                    onCompatAction = { action ->
+                        when (action) {
+                            "autostart" -> VendorCompat.openAutoStartSettings(this)
+                            "battery" -> {
+                                VendorCompat.requestIgnoreBatteryOptimizations(this)
+                                viewModel.refreshBatteryExemption()
+                            }
+                            "popup" -> VendorCompat.openBackgroundPopupSettings(this)
+                        }
+                    },
                 )
             }
         }
