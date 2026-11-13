@@ -26,6 +26,9 @@ class AllianceScanner(private val context: Context) {
     private val devices = mutableListOf<DiscoveredDevice>()
     private val lock = Any()
 
+    // BLUETOOTH_SCAN is requested by the hosting screen before calling start();
+    // every entry point below degrades gracefully through try-catch.
+    @android.annotation.SuppressLint("MissingPermission")
     fun start(onUpdate: (List<DiscoveredDevice>) -> Unit) {
         stop()
         val adapter = context.getSystemService(BluetoothManager::class.java).adapter
@@ -104,6 +107,7 @@ class AllianceScanner(private val context: Context) {
         }
     }
 
+    @android.annotation.SuppressLint("MissingPermission")
     fun stop() {
         callback?.let {
             try {
