@@ -19,11 +19,6 @@ AirShare（隔空互传）是社区开源成果的衍生作品，感谢以下项
   `hand_landmarker.task` 由 CI 从 Google 官方存储下载。伸掌/握拳的几何
   分类逻辑为本仓库实现（`gesture/HandGestureAnalyzer.kt`）。
 
-## 交互参考
-
-- 华为「AI 隔空传送」的公开交互流程（伸掌→握拳抓取→移动→张掌释放），
-  本项目用公开的端侧技术复刻了类似体验，与华为无任何隶属关系。
-
 ## 许可
 
 本项目整体以 MIT License 发布（继承上游条款），详见 [LICENSE](LICENSE)。

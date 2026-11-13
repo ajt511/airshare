@@ -144,7 +144,7 @@
     <string name="noti_chan_other">其他通知</string>
 
     <string name="gesture_transfer">隔空手势传输</string>
-    <string name="gesture_transfer_desc">握拳抓取内容，张开手掌释放到附近设备（华为同款交互）</string>
+    <string name="gesture_transfer_desc">握拳抓取内容，张开手掌释放到附近设备（零接触交互）</string>
     <string name="gesture_hint_idle">向屏幕张开手掌</string>
     <string name="gesture_hint_palm">已识别手掌 — 握拳抓取内容</string>
     <string name="gesture_hint_grabbed">已抓住！侧倾手机选设备，张开手掌发送</string>

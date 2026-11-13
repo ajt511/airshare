@@ -1,11 +1,12 @@
 package me.pipi.easyshare.gesture
 
 /**
- * Debounced state machine over raw gesture frames, mirroring the Huawei
- * "隔空传送" flow: hold an open palm to arm, close into a fist to grab, then
- * open the palm again to release. Every transition needs the same pose held
- * for [Config.stableFrames] consecutive frames (or [Config.stableMillis]
- * when the caller supplies timestamps) so camera noise cannot trigger it.
+ * Debounced state machine over raw gesture frames implementing the
+ * grab-and-release air-gesture flow: hold an open palm to arm, close into a
+ * fist to grab, then open the palm again to release. Every transition needs
+ * the same pose held for [Config.stableFrames] consecutive frames (or
+ * [Config.stableMillis] when the caller supplies timestamps) so camera noise
+ * cannot trigger it.
  */
 class GestureStateMachine(
     private val config: Config = Config(),

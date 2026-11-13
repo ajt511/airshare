@@ -149,7 +149,7 @@
     <string name="noti_chan_other">Other notifications</string>
 
     <string name="gesture_transfer">Air gesture transfer</string>
-    <string name="gesture_transfer_desc">Grab with a fist, release with an open palm (Huawei-style)</string>
+    <string name="gesture_transfer_desc">Grab with a fist, release with an open palm (touch-free)</string>
     <string name="gesture_hint_idle">Show your open palm to the camera</string>
     <string name="gesture_hint_palm">Palm detected — close your hand to grab</string>
     <string name="gesture_hint_grabbed">Grabbed! Tilt to pick a device, open palm to release</string>
