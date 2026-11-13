@@ -73,4 +73,11 @@ class AppSettings(private val context: Context) {
             prefs.edit { putBoolean("hapticsEnabled", value) }
         }
 
+    /** Show the gesture pill when the user browses images/picks files elsewhere. */
+    var photoGestureEnabled: Boolean
+        get() = prefs.getBoolean("photoGestureEnabled", false)
+        set(value) {
+            prefs.edit { putBoolean("photoGestureEnabled", value) }
+        }
+
 }

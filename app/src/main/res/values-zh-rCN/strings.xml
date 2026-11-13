@@ -176,4 +176,12 @@
     <string name="vendor_battery_title">忽略电池优化</string>
     <string name="vendor_battery_summary">防止 MIUI/ColorOS 杀掉后台接收服务</string>
     <string name="vendor_name_dynamic">已识别系统：%1$s</string>
+    <string name="photo_gesture_title">看图即手势</string>
+    <string name="photo_gesture_summary">在其他应用浏览图片或挑选文件时提供手势发送入口（需无障碍与悬浮窗权限；摄像头和算法只在你点按提示后才启动）</string>
+    <string name="photo_gesture_missing_permissions">缺少无障碍或悬浮窗权限——请先完成权限设置</string>
+    <string name="photo_gesture_setup_title">权限设置向导</string>
+    <string name="photo_gesture_setup_summary">引导开启悬浮窗与无障碍权限；小米手机还需开启「后台弹出界面」</string>
+    <string name="photo_gesture_service_desc">检测图片浏览和文件选择行为，以便提供隔空手势发送</string>
+    <string name="photo_gesture_pill_text">🖐 图片/文件模式 · 点按开始手势发送</string>
+    <string name="photo_gesture_enable_hint">请在列表中开启 AirShare 的无障碍服务，然后返回本应用</string>
 </resources>

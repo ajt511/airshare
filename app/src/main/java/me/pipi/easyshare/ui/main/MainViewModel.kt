@@ -54,6 +54,8 @@ data class MainUiState(
     val haptics: Boolean = true,
     val lanEnabled: Boolean = true,
     val ignoringBatteryOptimizations: Boolean = true,
+    val photoGesture: Boolean = false,
+    val photoGestureReady: Boolean = false,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -81,6 +83,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             lanEnabled = settings.lanEnabled,
             ignoringBatteryOptimizations = me.pipi.easyshare.compat.VendorCompat
                 .isIgnoringBatteryOptimizations(context),
+            photoGesture = settings.photoGestureEnabled,
+            photoGestureReady = isPhotoGestureReady(),
         )
     )
     val state: StateFlow<MainUiState> = _state.asStateFlow()
@@ -268,6 +272,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = _state.value.copy(
             ignoringBatteryOptimizations = me.pipi.easyshare.compat.VendorCompat
                 .isIgnoringBatteryOptimizations(context),
+        )
+    }
+
+    /** Overlay + accessibility are both in place for the photo-gesture feature. */
+    private fun isPhotoGestureReady(): Boolean {
+        val overlayOk = android.provider.Settings.canDrawOverlays(context)
+        val accessibilityOk = me.pipi.easyshare.gesture.PhotoWatchService.isEnabled(context)
+        return overlayOk && accessibilityOk
+    }
+
+    fun setPhotoGesture(enabled: Boolean) {
+        settings.photoGestureEnabled = enabled
+        _state.value = _state.value.copy(
+            photoGesture = enabled,
+            photoGestureReady = isPhotoGestureReady(),
+        )
+    }
+
+    fun refreshPhotoGestureState() {
+        _state.value = _state.value.copy(
+            photoGesture = settings.photoGestureEnabled,
+            photoGestureReady = isPhotoGestureReady(),
         )
     }
 

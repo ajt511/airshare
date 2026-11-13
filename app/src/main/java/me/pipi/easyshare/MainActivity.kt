@@ -25,6 +25,7 @@ import me.pipi.easyshare.ui.main.HomeReceiveRecovery
 import me.pipi.easyshare.ui.main.homeReceiveRecovery
 import me.pipi.easyshare.ui.theme.EasyShareTheme
 import me.pipi.easyshare.compat.VendorCompat
+import me.pipi.easyshare.gesture.PhotoWatchService
 import me.pipi.easyshare.utils.missingTransferPermissions
 import java.io.File
 
@@ -32,6 +33,18 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private var enableReceiverAfterPermission = false
     private var recoverReceiverAfterPermission = false
+    private var pendingPhotoGesture = false
+
+    private val overlayPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        if (Settings.canDrawOverlays(this)) {
+            continuePhotoGestureSetup()
+        } else {
+            pendingPhotoGesture = false
+            Toast.makeText(this, R.string.photo_gesture_missing_permissions, Toast.LENGTH_LONG).show()
+        }
+    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -110,6 +123,8 @@ class MainActivity : ComponentActivity() {
                         VendorCompat.requestIgnoreBatteryOptimizations(this)
                         viewModel.refreshBatteryExemption()
                     },
+                    onPhotoGestureChanged = ::setPhotoGesture,
+                    onPhotoGestureSetup = ::startPhotoGestureSetup,
                 )
             }
         }
@@ -128,6 +143,13 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.refreshReceiveState()
+        viewModel.refreshPhotoGestureState()
+        // Completing the flow: user returns from accessibility settings with
+        // the service enabled — finish the pending enable here.
+        if (pendingPhotoGesture && photoGesturePermissionsGranted()) {
+            pendingPhotoGesture = false
+            viewModel.setPhotoGesture(true)
+        }
     }
 
     private fun recoverReceive() {
@@ -157,6 +179,54 @@ class MainActivity : ComponentActivity() {
             enableReceiverAfterPermission = true
             permissionLauncher.launch(permissions.toTypedArray())
         }
+    }
+
+    private fun photoGesturePermissionsGranted(): Boolean =
+        Settings.canDrawOverlays(this) && PhotoWatchService.isEnabled(this)
+
+    private fun setPhotoGesture(enabled: Boolean) {
+        if (!enabled) {
+            pendingPhotoGesture = false
+            viewModel.setPhotoGesture(false)
+            return
+        }
+        pendingPhotoGesture = true
+        continuePhotoGestureSetup()
+    }
+
+    /** Walks the user through overlay → accessibility settings, then enables. */
+    private fun continuePhotoGestureSetup() {
+        if (!Settings.canDrawOverlays(this)) {
+            try {
+                overlayPermissionLauncher.launch(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        "package:$packageName".toUri(),
+                    ),
+                )
+                return
+            } catch (_: Exception) {
+                Toast.makeText(this, R.string.permission_not_granted, Toast.LENGTH_LONG).show()
+            }
+        }
+        if (!PhotoWatchService.isEnabled(this)) {
+            try {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                Toast.makeText(this, R.string.photo_gesture_enable_hint, Toast.LENGTH_LONG).show()
+                return
+            } catch (_: Exception) {
+                Toast.makeText(this, R.string.permission_not_granted, Toast.LENGTH_LONG).show()
+            }
+        }
+        if (photoGesturePermissionsGranted()) {
+            pendingPhotoGesture = false
+            viewModel.setPhotoGesture(true)
+        }
+    }
+
+    private fun startPhotoGestureSetup() {
+        pendingPhotoGesture = viewModel.state.value.photoGesture
+        continuePhotoGestureSetup()
     }
 
     private fun captureAndShareLogs() {

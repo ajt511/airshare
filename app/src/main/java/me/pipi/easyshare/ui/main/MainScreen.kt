@@ -114,6 +114,8 @@ fun MainScreen(
     onLanEnabledChanged: (Boolean) -> Unit = {},
     onOpenVendorAutoStart: () -> Unit = {},
     onRequestVendorBattery: () -> Unit = {},
+    onPhotoGestureChanged: (Boolean) -> Unit = {},
+    onPhotoGestureSetup: () -> Unit = {},
 ) {
     var showNameDialog by rememberSaveable { mutableStateOf(false) }
     var showBrandDialog by rememberSaveable { mutableStateOf(false) }
@@ -232,6 +234,30 @@ fun MainScreen(
                 trailing = {
                     Switch(checked = state.haptics, onCheckedChange = null)
                 },
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        SettingsCard {
+            NativeSettingItem(
+                title = stringResource(R.string.photo_gesture_title),
+                summary = stringResource(
+                    if (state.photoGesture && !state.photoGestureReady) {
+                        R.string.photo_gesture_missing_permissions
+                    } else {
+                        R.string.photo_gesture_summary
+                    },
+                ),
+                checked = state.photoGesture,
+                onClick = { onPhotoGestureChanged(!state.photoGesture) },
+                trailing = {
+                    Switch(checked = state.photoGesture, onCheckedChange = null)
+                },
+            )
+            SettingDivider()
+            NativeSettingItem(
+                title = stringResource(R.string.photo_gesture_setup_title),
+                summary = stringResource(R.string.photo_gesture_setup_summary),
+                onClick = onPhotoGestureSetup,
             )
         }
         Spacer(Modifier.height(20.dp))
