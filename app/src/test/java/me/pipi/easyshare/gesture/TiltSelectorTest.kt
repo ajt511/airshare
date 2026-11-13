@@ -8,8 +8,8 @@ class TiltSelectorTest {
     private val selector = TiltSelector(
         TiltSelector.Config(triggerDegrees = 32f, resetDegrees = 18f),
         object : TiltSelector.Listener {
-            override fun onStepLeft() = steps.add(-1)
-            override fun onStepRight() = steps.add(1)
+            override fun onStepLeft() { steps.add(-1) }
+            override fun onStepRight() { steps.add(1) }
         },
     )
 

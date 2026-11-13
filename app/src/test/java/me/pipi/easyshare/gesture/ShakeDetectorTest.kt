@@ -9,7 +9,7 @@ class ShakeDetectorTest {
     private val detector = ShakeDetector(
         ShakeDetector.Config(threshold = 18f, strokes = 3, burstMillis = 600L, quietMillis = 700L),
         object : ShakeDetector.Listener {
-            override fun onShake() = shakes++
+            override fun onShake() { shakes++ }
         },
     )
 

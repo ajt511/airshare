@@ -9,10 +9,10 @@ class GestureStateMachineTest {
     private val machine = GestureStateMachine(
         GestureStateMachine.Config(stableFrames = 3, stableMillis = 0L),
         object : GestureStateMachine.Listener {
-            override fun onPalmHeld() = events.add("palm")
-            override fun onGrabbed() = events.add("grab")
-            override fun onReleased() = events.add("release")
-            override fun onGrabLost() = events.add("lost")
+            override fun onPalmHeld() { events.add("palm") }
+            override fun onGrabbed() { events.add("grab") }
+            override fun onReleased() { events.add("release") }
+            override fun onGrabLost() { events.add("lost") }
         },
     )
 
