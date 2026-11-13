@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">AirShare</string>
+    <string name="app_name">GestureShare</string>
     <string name="send">Send</string>
     <string name="discoverable_desc">Can receive files from nearby devices</string>
     <string name="receiver_switch_title">Receive in background</string>
@@ -174,10 +174,10 @@
     <string name="haptics_summary">Vibrate on grab and release</string>
     <string name="settings_lan">LAN channel</string>
     <string name="lan_enabled_title">Transfer over Wi-Fi LAN</string>
-    <string name="lan_enabled_summary">Discover and send to AirShare devices on the same Wi-Fi or hotspot (no Wi-Fi Direct needed)</string>
+    <string name="lan_enabled_summary">Discover and send to GestureShare devices on the same Wi-Fi or hotspot (no Wi-Fi Direct needed)</string>
     <string name="settings_vendor">Xiaomi / OPPO adaptation</string>
     <string name="vendor_autostart_title">Open autostart settings</string>
-    <string name="vendor_autostart_summary">Allow AirShare to autostart so receiving keeps working in the background</string>
+    <string name="vendor_autostart_summary">Allow GestureShare to autostart so receiving keeps working in the background</string>
     <string name="vendor_battery_title">Ignore battery optimizations</string>
     <string name="vendor_battery_summary">Prevent MIUI/ColorOS from stopping background receiving</string>
     <string name="vendor_name_dynamic">%1$s detected</string>
@@ -186,7 +186,7 @@
     <string name="photo_gesture_missing_permissions">Accessibility or overlay permission is missing — run setup</string>
     <string name="photo_gesture_setup_title">Permission setup</string>
     <string name="photo_gesture_setup_summary">Guide through overlay and accessibility permissions; Xiaomi also needs background pop-up enabled</string>
-    <string name="photo_gesture_service_desc">Detects image browsing and file picking to offer AirShare gesture sending</string>
+    <string name="photo_gesture_service_desc">Detects image browsing and file picking to offer GestureShare gesture sending</string>
     <string name="photo_gesture_pill_text">🖐 Photo/file mode · tap to send with gesture</string>
-    <string name="photo_gesture_enable_hint">Enable the AirShare accessibility service, then return here</string>
+    <string name="photo_gesture_enable_hint">Enable the GestureShare accessibility service, then return here</string>
 </resources>

@@ -1,8 +1,8 @@
-# AirShare fork — build notes
+# GestureShare fork — build notes
 
 ## What this fork is
 
-AirShare（隔空互传）is a fork of HotKids/EasyShare (MIT, which itself
+GestureShare（手势互传）is a fork of HotKids/EasyShare (MIT, which itself
 derives from kmod-midori/CatShare) that adds:
 
 - Air-gesture transfer (MediaPipe Hand Landmarker): open palm → fist grab →

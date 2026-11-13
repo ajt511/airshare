@@ -96,7 +96,7 @@ jobs:
               -keystore "$keystore_path" \
               -storepass airshare-release -keypass airshare-release \
               -alias airshare -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=AirShare, OU=Fork, O=AirShare"
+              -dname "CN=GestureShare, OU=Fork, O=GestureShare"
             export SIGNING_STORE_PASSWORD=airshare-release
             export SIGNING_KEY_PASSWORD=airshare-release
             export SIGNING_KEY_ALIAS=airshare
@@ -215,4 +215,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --notes-file CHANGELOG.md \
-            --title "AirShare $RELEASE_TAG"
+            --title "GestureShare $RELEASE_TAG"

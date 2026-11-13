@@ -16,7 +16,7 @@ data class LanAnnouncement(
     val name: String,
     val brand: String,
     val brandId: Int,
-    /** TCP port of the receiver's AirShare HTTP server. */
+    /** TCP port of the receiver's GestureShare HTTP server. */
     val port: Int,
 ) {
     companion object {

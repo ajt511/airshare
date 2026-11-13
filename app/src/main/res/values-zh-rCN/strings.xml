@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">隔空互传</string>
+    <string name="app_name">手势互传</string>
     <string name="send">发送</string>
     <string name="discoverable_desc">可接收附近设备发送的文件</string>
     <string name="receiver_switch_title">后台接收</string>
@@ -169,10 +169,10 @@
     <string name="haptics_summary">抓取和释放时振动提示</string>
     <string name="settings_lan">局域网通道</string>
     <string name="lan_enabled_title">通过 Wi-Fi 局域网传输</string>
-    <string name="lan_enabled_summary">同一 Wi-Fi 或热点下的 AirShare 设备互相发现并传输（无需 Wi-Fi 直连）</string>
+    <string name="lan_enabled_summary">同一 Wi-Fi 或热点下的手势互传设备互相发现并传输（无需 Wi-Fi 直连）</string>
     <string name="settings_vendor">小米 / OPPO 适配</string>
     <string name="vendor_autostart_title">打开自启动设置</string>
-    <string name="vendor_autostart_summary">允许 AirShare 自启动，保证后台接收可用</string>
+    <string name="vendor_autostart_summary">允许手势互传自启动，保证后台接收可用</string>
     <string name="vendor_battery_title">忽略电池优化</string>
     <string name="vendor_battery_summary">防止 MIUI/ColorOS 杀掉后台接收服务</string>
     <string name="vendor_name_dynamic">已识别系统：%1$s</string>
@@ -183,5 +183,5 @@
     <string name="photo_gesture_setup_summary">引导开启悬浮窗与无障碍权限；小米手机还需开启「后台弹出界面」</string>
     <string name="photo_gesture_service_desc">检测图片浏览和文件选择行为，以便提供隔空手势发送</string>
     <string name="photo_gesture_pill_text">🖐 图片/文件模式 · 点按开始手势发送</string>
-    <string name="photo_gesture_enable_hint">请在列表中开启 AirShare 的无障碍服务，然后返回本应用</string>
+    <string name="photo_gesture_enable_hint">请在列表中开启「手势互传」的无障碍服务，然后返回本应用</string>
 </resources>

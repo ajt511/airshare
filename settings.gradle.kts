@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AirShare"
+rootProject.name = "GestureShare"
 include(":app")

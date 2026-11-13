@@ -13,7 +13,7 @@ import me.pipi.easyshare.GestureTransferActivity
 import me.pipi.easyshare.utils.TAG
 
 /**
- * App-wide "shake to share": while any AirShare activity is resumed and the
+ * App-wide "shake to share": while any GestureShare activity is resumed and the
  * setting is on, a firm shake jumps straight into the gesture screen.
  * Registered from the application's activity lifecycle callbacks.
  */

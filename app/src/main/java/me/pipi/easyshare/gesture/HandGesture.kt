@@ -1,6 +1,6 @@
 package me.pipi.easyshare.gesture
 
-/** The gestures AirShare recognizes with the front camera. */
+/** The gestures GestureShare recognizes with the front camera. */
 enum class HandGesture {
     /** All four fingers fully extended — the "show palm" pose. */
     OPEN_PALM,
