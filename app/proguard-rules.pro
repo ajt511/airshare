@@ -158,3 +158,10 @@
 -dontwarn jdk.jfr.Label
 -dontwarn jdk.jfr.MemoryAddress
 -dontwarn jdk.jfr.Name
+
+# MediaPipe tasks-vision bundles compile-time annotation processors (AutoValue
+# and its shaded javapoet) whose javax.lang.model references never run on device.
+-dontwarn javax.lang.model.**
+-dontwarn autovalue.shaded.com.squareup.javapoet.**
+-dontwarn com.google.auto.value.**
+-dontwarn com.google.errorprone.annotations.**
