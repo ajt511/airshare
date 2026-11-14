@@ -106,13 +106,16 @@ jobs:
 
           ./gradlew assembleRelease --no-daemon
 
-          universal_apk="app/build/outputs/apk/release/app-universal-release.apk"
-          arm64_apk="app/build/outputs/apk/release/app-arm64-v8a-release.apk"
-          test -f "$universal_apk"
-          test -f "$arm64_apk"
+          universal_apk="$(ls app/build/outputs/apk/release/app-universal-release*.apk 2>/dev/null | head -1)"
+          arm64_apk="$(ls app/build/outputs/apk/release/app-arm64-v8a-release*.apk 2>/dev/null | head -1)"
+          echo "universal apk: $universal_apk"
+          echo "arm64 apk: $arm64_apk"
+          test -n "$universal_apk"
+          test -n "$arm64_apk"
 
           # Version-suffixed artifact names so multiple builds never collide.
-          version_name="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*="([^"]+)".*/\1/p' app/build.gradle.kts)"
+          version_name="$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)"
+          echo "version: $version_name"
           test -n "$version_name"
 
           mkdir -p release
@@ -125,7 +128,7 @@ jobs:
 
           "$build_tools/apksigner" verify --verbose "release/airshare-universal-${version_name}.apk"
           "$build_tools/apksigner" verify --verbose "release/airshare-arm64-${version_name}.apk"
-          (cd release && sha256sum airshare-*.apk > SHA256SUMS)
+          (cd release && ls -la && sha256sum airshare-*.apk > SHA256SUMS)
 
       - name: Upload signed APKs
         if: github.event_name != 'pull_request'
