@@ -34,8 +34,8 @@ android {
         applicationId = "me.pipi.easyshare"
         minSdk = 31
         targetSdk = 37
-        versionCode = 15
-        versionName = "1.3.3-beta"
+        versionCode = 16
+        versionName = "1.3.4-beta"
     }
 
     signingConfigs {

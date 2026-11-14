@@ -101,10 +101,12 @@ class LanDiscovery(private val context: Context) {
     }
 
     private suspend fun runAnnouncer() {
-        val payload = LanProtocol.json.encodeToString(LanAnnouncement.serializer(), announcement())
-            .toByteArray(StandardCharsets.UTF_8)
         while (running && scope.isActive) {
             try {
+                // Build per tick so a renamed device re-announces correctly.
+                val payload = LanProtocol.json
+                    .encodeToString(LanAnnouncement.serializer(), announcement())
+                    .toByteArray(StandardCharsets.UTF_8)
                 DatagramSocket().use { sender ->
                     sender.broadcast = true
                     sender.send(

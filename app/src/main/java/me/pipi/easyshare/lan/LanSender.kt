@@ -17,7 +17,10 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -75,9 +78,13 @@ class LanSender(private val context: Context) {
         try {
             if (textContent != null) {
                 // Text rides one file-less POST so the receiver can copy it.
-                client.post("http://$host:$port/airshare/file/$taskId/0") {
+                val textResponse = client.post("http://$host:$port/airshare/file/$taskId/0") {
                     setBody(textContent)
                     contentType(ContentType.Text.Plain)
+                }
+                if (!textResponse.status.isSuccess()) {
+                    Log.w(TAG, "Text POST rejected: ${textResponse.status}")
+                    succeeded = false
                 }
             } else {
                 val total = metas.sumOf { it.second.size }.coerceAtLeast(1L)
@@ -162,9 +169,15 @@ class LanSender(private val context: Context) {
         )
     }
 
-    suspend fun close() {
-        client.close()
+    /**
+     * Non-suspending shutdown: fires on an internal scope so callers whose
+     * own scope is already cancelled (ViewModel.onCleared) still work.
+     */
+    fun close() {
+        closeScope.launch { runCatching { client.close() } }
     }
+
+    private val closeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
         private const val TAG = "LanSender"

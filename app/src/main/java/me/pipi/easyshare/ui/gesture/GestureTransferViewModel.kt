@@ -362,7 +362,7 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
     override fun onCleared() {
         scanner.stop()
         lanDiscovery.stop()
-        viewModelScope.launch(Dispatchers.IO) { lanSender.close() }
+        lanSender.close()
         sendJob?.cancel()
         super.onCleared()
     }

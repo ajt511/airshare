@@ -29,7 +29,9 @@ class PhotoWatchService : AccessibilityService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pillView: LinearLayout? = null
     private var lastShownAtMillis = 0L
-    private var lastPkg: String? = null
+    /** Last seen foreground window as "package/class" — different windows
+     *  inside the same app (list → detail → list) may each trigger. */
+    private var lastWindowKey: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -47,12 +49,13 @@ class PhotoWatchService : AccessibilityService() {
         if (pkg == packageName) {
             // Our own screen is up; reset tracking so returning to the same
             // gallery window can trigger again.
-            lastPkg = null
+            lastWindowKey = null
             hidePill()
             return
         }
-        if (pkg == lastPkg) return
-        lastPkg = pkg
+        val windowKey = pkg + "/" + (event.className?.toString() ?: "")
+        if (windowKey == lastWindowKey) return
+        lastWindowKey = windowKey
         if (!PhotoContextMatcher.matches(pkg, event.className?.toString())) return
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastShownAtMillis < COOLDOWN_MILLIS) return

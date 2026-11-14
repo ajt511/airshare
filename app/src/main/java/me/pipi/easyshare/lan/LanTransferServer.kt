@@ -47,6 +47,8 @@ class LanTransferServer(private val context: Context) {
     private class LanSession(
         val meta: LanPrepareRequest,
         val files: MutableList<ReceivedFile> = mutableListOf(),
+        /** Received text payload when the task is a text transfer. */
+        @Volatile var receivedText: String? = null,
         @Volatile var canceled: Boolean = false,
     )
 
@@ -134,14 +136,24 @@ class LanTransferServer(private val context: Context) {
             call.respondText("no session", status = HttpStatusCode.NotFound)
             return
         }
-        val session = sessions[taskId]
-        val meta = session?.meta?.files?.getOrNull(index)
-        if (session == null || meta == null) {
+        val session = sessions[taskId] ?: run {
             call.respondText("no session", status = HttpStatusCode.NotFound)
             return
         }
         if (session.canceled) {
             call.respondText("canceled", status = HttpStatusCode.Gone)
+            return
+        }
+        // Text tasks carry no file metas; the payload rides index 0 as plain text.
+        if (session.meta.textContent != null) {
+            session.receivedText = call.receiveText()
+            IncomingTransferUiCoordinator.markReceiving(taskId, 90, "text")
+            call.respondText("ok")
+            return
+        }
+        val meta = session.meta.files.getOrNull(index)
+        if (meta == null) {
+            call.respondText("no session", status = HttpStatusCode.NotFound)
             return
         }
         val channel = call.request.receiveChannel()
@@ -184,6 +196,22 @@ class LanTransferServer(private val context: Context) {
                 context.getString(R.string.cancelled_by_user_remote),
                 canceled = true,
             )
+            call.respondText("ok")
+            return
+        }
+        // Text task: put the received payload on the clipboard; the incoming
+        // sheet already shows "copied to clipboard" for isText tasks.
+        session.receivedText?.let { text ->
+            try {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                clipboard.setPrimaryClip(
+                    android.content.ClipData.newPlainText("GestureShare", text),
+                )
+            } catch (error: Exception) {
+                Log.e(TAG, "Failed to copy LAN text to clipboard", error)
+            }
+            IncomingTransferUiCoordinator.complete(request.taskId, emptyList(), false)
             call.respondText("ok")
             return
         }
