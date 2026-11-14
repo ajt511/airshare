@@ -111,16 +111,20 @@ jobs:
           test -f "$universal_apk"
           test -f "$arm64_apk"
 
+          # Version-suffixed artifact names so multiple builds never collide.
+          version_name="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*="([^"]+)".*/\1/p' app/build.gradle.kts)"
+          test -n "$version_name"
+
           mkdir -p release
-          cp "$universal_apk" release/airshare-universal.apk
-          cp "$arm64_apk" release/airshare-arm64.apk
+          cp "$universal_apk" "release/airshare-universal-${version_name}.apk"
+          cp "$arm64_apk" "release/airshare-arm64-${version_name}.apk"
 
           rm -f "$keystore_path"
           unset SIGNING_KEYSTORE_PATH SIGNING_KEYSTORE_BASE64
           unset SIGNING_STORE_PASSWORD SIGNING_KEY_PASSWORD SIGNING_KEY_ALIAS
 
-          "$build_tools/apksigner" verify --verbose release/airshare-universal.apk
-          "$build_tools/apksigner" verify --verbose release/airshare-arm64.apk
+          "$build_tools/apksigner" verify --verbose "release/airshare-universal-${version_name}.apk"
+          "$build_tools/apksigner" verify --verbose "release/airshare-arm64-${version_name}.apk"
           (cd release && sha256sum airshare-*.apk > SHA256SUMS)
 
       - name: Upload signed APKs
@@ -129,8 +133,8 @@ jobs:
         with:
           name: airshare-${{ github.ref_name }}
           path: |
-            release/airshare-universal.apk
-            release/airshare-arm64.apk
+            release/airshare-universal-*.apk
+            release/airshare-arm64-*.apk
             release/SHA256SUMS
           if-no-files-found: error
           compression-level: 0
@@ -208,9 +212,10 @@ jobs:
               -f sha="$GITHUB_SHA" >/dev/null
           fi
 
+          version_name="${RELEASE_TAG#v}"
           gh release create "$RELEASE_TAG" \
-            release/airshare-universal.apk \
-            release/airshare-arm64.apk \
+            "release/airshare-universal-${version_name}.apk" \
+            "release/airshare-arm64-${version_name}.apk" \
             release/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \

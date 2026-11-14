@@ -52,7 +52,7 @@ MIT）构建，可直接向小米/OPPO/vivo 等手机的**原生互传**功能�
 
 1. Fork / 推送本仓库到 GitHub
 2. 打开 Actions → Android CI → 最新一次运行
-3. Artifacts 下载 `airshare-main`（含 universal / arm64 两个 APK + SHA256SUMS）
+3. Artifacts 下载 `airshare-main`（含 **带版本后缀** 的 universal / arm64 两个 APK + SHA256SUMS，如 `airshare-universal-1.3.2-beta.apk`）
 4. 也可以在 Actions 里手动触发并勾选 `publish_release` 发布 Release
 
 > 签名：未配置 `SIGNING_*` secrets 时，CI 会为每次构建生成临时密钥。APK
