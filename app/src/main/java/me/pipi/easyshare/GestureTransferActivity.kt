@@ -218,7 +218,7 @@ class GestureTransferActivity : ComponentActivity() {
                         imageProxy.close()
                     }
                 }
-                val useCases = mutableListOf<ImageAnalysis>(analysis)
+                val useCases = mutableListOf<androidx.camera.core.UseCase>(analysis)
                 previewSurfaceProvider?.let { surfaceProvider ->
                     useCases.add(
                         Preview.Builder().build().also { it.surfaceProvider = surfaceProvider },
