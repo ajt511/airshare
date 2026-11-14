@@ -29,14 +29,22 @@ object PhotoContextMatcher {
         "com.google.android.apps.nbu.files", // Files by Google
     )
 
-    /** Package prefixes treated as watchable (catches OEM variants). */
+    /**
+     * Package prefixes treated as watchable (catches variants). These are
+     * chat apps whose main windows must NOT trigger, so a viewer-like class
+     * name is always required.
+     */
     private val KNOWN_PREFIXES = listOf(
-        "com.tencent.mm", // WeChat image viewer / album picker
+        "com.tencent.mm",       // WeChat image viewer / album picker
+        "com.tencent.mobileqq", // QQ (incl. QQNT; image preview/gallery pages)
+        "com.tencent.qqlite",   // QQ 轻聊版
+        "com.tencent.tim",      // TIM
     )
 
-    /** Class-name hints for picker-style screens (when the package alone is generic). */
+    /** Class-name hints for image-viewer / picker-style screens. */
     private val CLASS_HINTS = listOf(
         "multiselect", "multichoice", "picker", "album", "photopage",
+        "photo", "gallery", "preview", "imagepager", "imagebrowse", "image",
     )
 
     fun matches(packageName: String?, className: String? = null): Boolean {
@@ -44,7 +52,9 @@ object PhotoContextMatcher {
         val pkg = packageName.lowercase()
         if (pkg in KNOWN_PACKAGES) return true
         if (KNOWN_PREFIXES.any { pkg.startsWith(it) }) {
-            if (className.isNullOrBlank()) return true
+            // Chat apps: never trigger on their main/chat windows — a
+            // viewer-like class name is mandatory (blank counts as no).
+            if (className.isNullOrBlank()) return false
             return classNameLooksLikeViewer(className)
         }
         return false
