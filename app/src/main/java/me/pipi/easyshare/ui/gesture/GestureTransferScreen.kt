@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.pipi.easyshare.GestureCameraPreview
 import me.pipi.easyshare.R
+import androidx.camera.core.Preview
 import me.pipi.easyshare.gesture.HandGesture
 import me.pipi.easyshare.utils.DeviceUtils
 
@@ -66,6 +67,7 @@ fun GestureTransferScreen(
     onCancelSend: () -> Unit,
     onRetryCamera: () -> Unit,
     onStepSelection: (Int) -> Unit,
+    onCameraSurfaceReady: (Preview.SurfaceProvider) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         // 前摄预览（暗化，作为取景参照）
@@ -73,7 +75,7 @@ fun GestureTransferScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .alpha(0.35f),
-            lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current,
+            onSurfaceProviderReady = onCameraSurfaceReady,
         )
 
         IconButton(onClick = onClose, modifier = Modifier.padding(12.dp)) {

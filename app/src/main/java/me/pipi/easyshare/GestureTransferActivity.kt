@@ -35,8 +35,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.Composable
 import java.util.concurrent.Executors
 
@@ -64,7 +62,7 @@ class GestureTransferActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         cameraPermissionGranted = granted
-        if (granted) bindAnalysis() else viewModel.onCameraError()
+        if (granted) bindCamera() else viewModel.onCameraError()
     }
 
     private val filePickerLauncher = registerForActivityResult(
@@ -118,6 +116,10 @@ class GestureTransferActivity : ComponentActivity() {
                         onCancelSend = viewModel::cancelSend,
                         onRetryCamera = ::ensureCamera,
                         onStepSelection = viewModel::stepSelection,
+                        onCameraSurfaceReady = { surfaceProvider ->
+                            previewSurfaceProvider = surfaceProvider
+                            if (cameraPermissionGranted) bindCamera()
+                        },
                     )
                 }
                 BackHandler { finish() }
@@ -144,7 +146,7 @@ class GestureTransferActivity : ComponentActivity() {
 
     private fun ensureCamera() {
         if (cameraPermissionGranted) {
-            bindAnalysis()
+            bindCamera()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
@@ -166,9 +168,17 @@ class GestureTransferActivity : ComponentActivity() {
             ?.unregisterListener(sensorListener)
     }
 
-    /** Binds only the analysis use case; the Preview use case lives in [GestureCameraPreview]. */
+    /**
+     * Single camera bind point: preview (when its surface provider has
+     * arrived from Compose) + analysis, bound together in ONE call —
+     * bindToLifecycle replaces the whole use-case set for this
+     * lifecycle+camera pair, so separate calls would unbind each other.
+     */
+    @Volatile
+    private var previewSurfaceProvider: Preview.SurfaceProvider? = null
+
     @SuppressLint("UnsafeOptInUsageError")
-    private fun bindAnalysis() {
+    private fun bindCamera() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             try {
@@ -208,15 +218,19 @@ class GestureTransferActivity : ComponentActivity() {
                         imageProxy.close()
                     }
                 }
-                // No unbindAll here: the Preview use case in GestureCameraPreview
-                // shares this lifecycle and CameraX reconciles both bindings.
+                val useCases = mutableListOf<ImageAnalysis>(analysis)
+                previewSurfaceProvider?.let { surfaceProvider ->
+                    useCases.add(
+                        Preview.Builder().build().also { it.surfaceProvider = surfaceProvider },
+                    )
+                }
                 provider.bindToLifecycle(
                     this,
                     CameraSelector.DEFAULT_FRONT_CAMERA,
-                    analysis,
+                    *useCases.toTypedArray(),
                 )
             } catch (error: Exception) {
-                Log.e(TAG, "Camera analysis start failed", error)
+                Log.e(TAG, "Camera bind failed", error)
                 runOnUiThread { viewModel.onCameraError() }
             }
         }, ContextCompat.getMainExecutor(this))
@@ -260,37 +274,26 @@ class GestureTransferActivity : ComponentActivity() {
     }
 }
 
-/** Front-camera preview surface used as the gesture framing guide. */
+/**
+ * Front-camera preview surface used as the gesture framing guide.
+ * Deliberately does NOT bind camera use cases here: CameraX's
+ * bindToLifecycle replaces all use cases for the lifecycle+camera pair, so
+ * binding preview here would unbind the analysis stream bound by the
+ * activity (and vice versa). The activity owns the single bind call once
+ * this surface provider is available.
+ */
 @Composable
 fun GestureCameraPreview(
     modifier: Modifier,
-    lifecycleOwner: LifecycleOwner,
+    onSurfaceProviderReady: (Preview.SurfaceProvider) -> Unit,
 ) {
     AndroidView(
         modifier = modifier,
         factory = { context ->
             PreviewView(context).apply {
                 implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                onSurfaceProviderReady(surfaceProvider)
             }
-        },
-        update = { view ->
-            if (view.surfaceProvider != null) return@AndroidView
-            val future = ProcessCameraProvider.getInstance(view.context)
-            future.addListener({
-                try {
-                    val provider = future.get()
-                    val preview = Preview.Builder().build().also { useCase ->
-                        useCase.surfaceProvider = view.surfaceProvider
-                    }
-                    provider.bindToLifecycle(
-                        lifecycleOwner,
-                        CameraSelector.DEFAULT_FRONT_CAMERA,
-                        preview,
-                    )
-                } catch (error: Exception) {
-                    Log.w("GestureCamera", "Preview bind failed", error)
-                }
-            }, ContextCompat.getMainExecutor(view.context))
         },
     )
 }
