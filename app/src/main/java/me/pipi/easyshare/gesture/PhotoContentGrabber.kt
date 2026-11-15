@@ -25,6 +25,16 @@ import java.io.File
  */
 object PhotoContentGrabber {
 
+    /** Outcome of resolving the viewed image for one grab. */
+    sealed interface GrabResult {
+        data class Success(val file: FileInfo) : GrabResult
+
+        /** QQ/WeChat with no usable Shizuku: fall back to cropping a screenshot. */
+        data object ScreenCaptureFallback : GrabResult
+
+        data object Failure : GrabResult
+    }
+
     // ---------------------------------------------------------------------
     // Pure helpers (unit-tested)
     // ---------------------------------------------------------------------
@@ -123,20 +133,20 @@ object PhotoContentGrabber {
     }
 
     /**
-     * Resolves the currently viewed image to a sendable [FileInfo]. Returns
-     * null when nothing can be matched — callers show a failure badge and
-     * never fall back to sending something unverified.
+     * Resolves the currently viewed image to a sendable [GrabResult]. Failure
+     * callers show a failure badge and never send something unverified.
      */
-    suspend fun grab(context: Context, hints: List<String>, sourcePackage: String?, atMillis: Long): FileInfo? {
+    suspend fun grab(context: Context, hints: List<String>, sourcePackage: String?, atMillis: Long): GrabResult {
         return try {
             if (isTencentPackage(sourcePackage)) {
                 grabTencentCache(context, sourcePackage, atMillis)
             } else {
-                grabGallery(context, hints)
+                val file = grabGallery(context, hints)
+                if (file != null) GrabResult.Success(file) else GrabResult.Failure
             }
         } catch (error: Exception) {
             android.util.Log.w("PhotoContentGrabber", "grab failed", error)
-            null
+            GrabResult.Failure
         }
     }
 
@@ -160,8 +170,9 @@ object PhotoContentGrabber {
     }
 
     /** QQ/WeChat: most recent cache image via the Shizuku user service. */
-    private suspend fun grabTencentCache(context: Context, sourcePackage: String?, atMillis: Long): FileInfo? {
-        val pkg = sourcePackage?.lowercase() ?: return null
+    private suspend fun grabTencentCache(context: Context, sourcePackage: String?, atMillis: Long): GrabResult {
+        val pkg = sourcePackage?.lowercase() ?: return GrabResult.Failure
+        if (!ShizukuUtils.userServiceAvailable(context)) return GrabResult.ScreenCaptureFallback
         val roots = TENCENT_CACHE_ROOTS.filterKeys { pkg.startsWith(it) }.values.flatten()
         val since = atMillis - CACHE_WINDOW_MILLIS
         for (root in roots) {
@@ -174,9 +185,9 @@ object PhotoContentGrabber {
             }.getOrNull() ?: continue
             val info = runCatching { FileInfoFactory.fromUri(context, uri) }.getOrNull() ?: continue
             // OpenableColumns reports the provider path; use the original name.
-            return info.copy(name = outFile.name, nameIsFallback = false)
+            return GrabResult.Success(info.copy(name = outFile.name, nameIsFallback = false))
         }
-        return null
+        return GrabResult.Failure
     }
 
     private suspend fun readPlainBytes(pkg: String, path: String): ByteArray? {

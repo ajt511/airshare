@@ -129,6 +129,8 @@ class MainActivity : ComponentActivity() {
                     },
                     onPhotoGestureChanged = ::setPhotoGesture,
                     onPhotoGestureSetup = ::startPhotoGestureSetup,
+                    onGestureReceiveConfirmChanged = viewModel::setGestureReceiveConfirm,
+                    onPhotoGesturePersistentChanged = viewModel::setPhotoGesturePersistent,
                     onAutoPairChanged = viewModel::setAutoPair,
                     onPairWindowChanged = viewModel::setPairWindow,
                     onClearAutoPair = {
@@ -210,9 +212,12 @@ class MainActivity : ComponentActivity() {
     ) { /* non-blocking: grabber degrades to a badge hint when missing */ }
 
     /** Media read access so the grab gesture can match the viewed gallery
-     *  image against MediaStore; optional — capture works without it. */
+     *  image against MediaStore, plus CAMERA for the capture session —
+     *  without it the direct-gesture camera bind would fail outright.
+     *  Optional — capture degrades when missing. */
     private fun requestMediaPermissionsIfNeeded() {
         val wanted = buildList {
+            add(Manifest.permission.CAMERA)
             if (Build.VERSION.SDK_INT >= 33) {
                 add(Manifest.permission.READ_MEDIA_IMAGES)
                 if (Build.VERSION.SDK_INT >= 34) {

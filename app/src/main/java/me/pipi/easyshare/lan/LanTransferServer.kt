@@ -123,13 +123,17 @@ class LanTransferServer(private val context: Context) {
             return
         }
         // Auto-pairing (beta): trust + auto-accept for devices with an open
-        // accept-window; every acceptance re-opens the window.
+        // accept-window; every acceptance re-opens the window. With the
+        // gesture confirmation disabled, already paired devices are accepted
+        // outright (unknown devices still confirm).
         val settings = AppSettings(context)
         if (settings.autoPairEnabled) {
             AutoPairStore.trust(
                 context, senderKey, request.senderName, request.senderBrandId.takeIf { it >= 0 },
             )
-            if (AutoPairStore.hasOpenWindow(context, senderKey)) {
+            if (AutoPairStore.hasOpenWindow(context, senderKey) ||
+                (!settings.gestureReceiveConfirmEnabled && AutoPairStore.isTrusted(context, senderKey))
+            ) {
                 IncomingTransferUiCoordinator.decide(taskId, IncomingRequestDecision.ACCEPTED)
             }
         }

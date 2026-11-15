@@ -136,6 +136,15 @@ object ShizukuUtils {
         return withMacService { it.p2pMacAddress }
     }
 
+    /** Whether the Shizuku user service can be used right now. */
+    fun userServiceAvailable(context: Context): Boolean {
+        return try {
+            AppSettings(context).enhancedModeEnabled && Shizuku.pingBinder()
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
     private suspend fun <T> withMacService(read: (IMacAddressService) -> T?): T? {
         return try {
             val current = synchronized(binderLock) { macService }

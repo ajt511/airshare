@@ -191,6 +191,12 @@
     <string name="photo_gesture_badge_camera_start">🖐 Starting camera…</string>
     <string name="photo_gesture_badge_waiting">🖐 Show palm, then grab</string>
     <string name="photo_gesture_badge_palm_detected">🖐 Palm detected ✓ fist to grab</string>
+    <string name="photo_gesture_badge_screen_consent">✊ Allow screen capture in the dialog</string>
+    <string name="photo_gesture_persistent_title">Keep camera on photo pages</string>
+    <string name="photo_gesture_persistent_summary">While on a photo page recognition stays on for consecutive grabs; leaving the page stops it (default: a short session per page)</string>
+    <string name="gesture_receive_confirm_title">Confirm before receiving</string>
+    <string name="gesture_receive_confirm_summary">The incoming sheet answers by gesture: fist = accept, wave = reject. Off: already paired devices receive directly</string>
+    <string name="incoming_gesture_hint">✊ fist = accept · 👋 wave = reject (buttons below also work)</string>
     <string name="photo_gesture_badge_grabbing">✊ Grabbing image…</string>
     <string name="photo_gesture_badge_ready_with_target">✊ Grabbed → %1$s (tilt to switch)</string>
     <string name="photo_gesture_badge_ready_no_target">✊ Grabbed · no device found</string>

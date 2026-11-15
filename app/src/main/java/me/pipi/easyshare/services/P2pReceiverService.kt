@@ -940,14 +940,21 @@ class P2pReceiverService : BaseP2pService() {
                             senderKey = senderKey,
                         ))
                         // Auto-pairing (beta): paired devices with an open
-                        // accept-window are accepted without prompting.
+                        // accept-window are accepted without prompting. With
+                        // the gesture confirmation disabled, any already
+                        // paired device is accepted outright as well.
                         if (AppSettings(applicationContext).autoPairEnabled) {
                             me.pipi.easyshare.pairing.AutoPairStore.trust(
                                 applicationContext, senderKey, senderName, resolvedSenderBrandId,
                             )
+                            val settings = AppSettings(applicationContext)
                             if (me.pipi.easyshare.pairing.AutoPairStore.hasOpenWindow(
                                     applicationContext, senderKey,
-                                )
+                                ) ||
+                                (!settings.gestureReceiveConfirmEnabled &&
+                                    me.pipi.easyshare.pairing.AutoPairStore.isTrusted(
+                                        applicationContext, senderKey,
+                                    ))
                             ) {
                                 IncomingTransferUiCoordinator.decide(
                                     localTaskId, IncomingRequestDecision.ACCEPTED,

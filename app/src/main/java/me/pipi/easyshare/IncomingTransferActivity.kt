@@ -1,11 +1,14 @@
 package me.pipi.easyshare
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
+import android.util.Size
 import android.text.format.Formatter
 import android.view.WindowManager
 import android.widget.Toast
@@ -13,6 +16,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -32,9 +41,13 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.Lifecycle
+import me.pipi.easyshare.gesture.GestureFrame
+import me.pipi.easyshare.gesture.HandGesture
+import me.pipi.easyshare.gesture.HandWaveDetector
 import me.pipi.easyshare.models.IncomingTransferUiState
 import me.pipi.easyshare.models.IncomingTransferUiStatus
 import me.pipi.easyshare.models.ReceivedFile
@@ -51,6 +64,8 @@ import me.pipi.easyshare.utils.DeviceUtils
 import me.pipi.easyshare.utils.IncomingRequestDecision
 import me.pipi.easyshare.utils.IncomingTransferUiCoordinator
 import me.pipi.easyshare.utils.ReceivedFilesSnapshot
+import me.pipi.easyshare.vision.HandLandmarkerHelper
+import java.util.concurrent.Executors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -60,6 +75,26 @@ import kotlinx.coroutines.withContext
 class IncomingTransferActivity : ComponentActivity() {
     private var transferTaskId by mutableIntStateOf(Int.MIN_VALUE)
     private var lastPresentation by mutableStateOf<IncomingTransferUiState?>(null)
+
+    // ------------------------------------------------------------------
+    // Gesture answering on the confirmation sheet: fist = accept,
+    // horizontal wave = reject. The front camera runs analysis-only while
+    // the sheet waits in REQUESTED; buttons and notifications keep working
+    // (decide() is idempotent — the first decision wins).
+    // ------------------------------------------------------------------
+    private var landmarker: HandLandmarkerHelper? = null
+    private val analysisExecutor = Executors.newSingleThreadExecutor()
+    private var cameraPermissionGranted = false
+    private var gestureCameraActive by mutableStateOf(false)
+    private var fistStableFrames = 0
+    private val waveDetector = HandWaveDetector(HandWaveDetector.Config()) { rejectGesture() }
+
+    private val gestureCameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        cameraPermissionGranted = granted
+        if (granted) bindGestureCamera()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -113,9 +148,21 @@ class IncomingTransferActivity : ComponentActivity() {
                     cancelEnabled = true
                 }
                 BackHandler { hideAndFinish(shownTaskId) }
+                LaunchedEffect(shownTaskId, state.status) {
+                    val confirmEnabled = me.pipi.easyshare.AppSettings(
+                        this@IncomingTransferActivity,
+                    ).gestureReceiveConfirmEnabled
+                    if (state.status == IncomingTransferUiStatus.REQUESTED && confirmEnabled) {
+                        ensureGestureCamera()
+                    } else {
+                        unbindGestureCamera()
+                    }
+                }
                 IncomingTransferScreen(
                     state = state,
                     cancelEnabled = cancelEnabled && !state.cancelRequested,
+                    gestureHint = gestureCameraActive &&
+                        state.status == IncomingTransferUiStatus.REQUESTED,
                     onDismiss = { hideAndFinish(shownTaskId) },
                     onReject = { rejectAndFinish(shownTaskId) },
                     onAccept = { accept(shownTaskId) },
@@ -140,7 +187,129 @@ class IncomingTransferActivity : ComponentActivity() {
 
     override fun onStop() {
         IncomingTransferUiCoordinator.hide(transferTaskId, this)
+        unbindGestureCamera()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        analysisExecutor.shutdown()
+        super.onDestroy()
+    }
+
+    private fun ensureGestureCamera() {
+        if (gestureCameraActive) return
+        if (cameraPermissionGranted) {
+            bindGestureCamera()
+        } else {
+            runCatching { gestureCameraPermissionLauncher.launch(Manifest.permission.CAMERA) }
+                .onFailure { Log.w(TAG, "Cannot request camera permission", it) }
+        }
+    }
+
+    /**
+     * Analysis-only front-camera bind (no preview): mirrors the capture
+     * service. Any failure leaves the sheet on plain buttons.
+     */
+    @SuppressLint("UnsafeOptInUsageError")
+    private fun bindGestureCamera() {
+        if (gestureCameraActive) return
+        try {
+            val future = ProcessCameraProvider.getInstance(this)
+            future.addListener({
+                try {
+                    val provider = future.get()
+                    landmarker?.close()
+                    landmarker = HandLandmarkerHelper(
+                        context = this,
+                        onFrame = { frame ->
+                            runOnUiThread { onGestureFrame(frame) }
+                        },
+                        onError = { message ->
+                            // LIVE_STREAM hiccups must not kill the sheet.
+                            Log.w(TAG, "gesture landmarker: $message")
+                        },
+                    )
+                    val analysis = ImageAnalysis.Builder()
+                        .setResolutionSelector(
+                            ResolutionSelector.Builder()
+                                .setResolutionStrategy(
+                                    ResolutionStrategy(
+                                        Size(640, 480),
+                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
+                                    )
+                                )
+                                .build(),
+                        )
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
+                    analysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                        try {
+                            val mediaImage = imageProxy.image
+                            if (mediaImage != null) {
+                                landmarker?.detectAsync(mediaImage, SystemClock.elapsedRealtime())
+                            }
+                        } catch (error: Exception) {
+                            Log.w(TAG, "Gesture analysis frame failed", error)
+                        } finally {
+                            imageProxy.close()
+                        }
+                    }
+                    provider.bindToLifecycle(
+                        this,
+                        CameraSelector.DEFAULT_FRONT_CAMERA,
+                        analysis,
+                    )
+                    gestureCameraActive = true
+                } catch (error: Exception) {
+                    Log.w(TAG, "Gesture camera bind failed; buttons remain", error)
+                    gestureCameraActive = false
+                }
+            }, ContextCompat.getMainExecutor(this))
+        } catch (error: Exception) {
+            Log.w(TAG, "Gesture camera unavailable", error)
+            gestureCameraActive = false
+        }
+    }
+
+    private fun unbindGestureCamera() {
+        gestureCameraActive = false
+        landmarker?.close()
+        landmarker = null
+        fistStableFrames = 0
+    }
+
+    private fun onGestureFrame(frame: GestureFrame) {
+        val state = IncomingTransferUiCoordinator.get(transferTaskId) ?: return
+        if (state.status != IncomingTransferUiStatus.REQUESTED) return
+        if (frame.gesture == HandGesture.FIST) {
+            fistStableFrames++
+            if (fistStableFrames >= FIST_STABLE_FRAMES) {
+                fistStableFrames = 0
+                acceptGesture()
+            }
+        } else {
+            fistStableFrames = 0
+        }
+        waveDetector.onFrame(frame, SystemClock.elapsedRealtime())
+    }
+
+    private fun acceptGesture() {
+        if (IncomingTransferUiCoordinator.decide(
+                transferTaskId, IncomingRequestDecision.ACCEPTED,
+            )
+        ) {
+            Log.i(TAG, "Incoming transfer accepted via fist gesture")
+        }
+    }
+
+    private fun rejectGesture() {
+        if (IncomingTransferUiCoordinator.decide(
+                transferTaskId, IncomingRequestDecision.REJECTED,
+            )
+        ) {
+            Log.i(TAG, "Incoming transfer rejected via wave gesture")
+        }
+        hideAndFinish(transferTaskId)
     }
 
     @Suppress("DEPRECATION")
@@ -260,6 +429,7 @@ class IncomingTransferActivity : ComponentActivity() {
         private const val STATE_TASK_ID = "incomingTaskId"
         private const val STATE_PRESENTATION = "incomingPresentation"
         private const val TAG = "IncomingTransfer"
+        private const val FIST_STABLE_FRAMES = 5
 
         fun createIntent(
             context: Context,
@@ -321,6 +491,7 @@ internal fun restoredIncomingState(
 private fun IncomingTransferScreen(
     state: IncomingTransferUiState,
     cancelEnabled: Boolean,
+    gestureHint: Boolean,
     onDismiss: () -> Unit,
     onReject: () -> Unit,
     onAccept: () -> Unit,
@@ -342,7 +513,10 @@ private fun IncomingTransferScreen(
     val countLabel = TransferCopy.itemLabel(context, fileName, mimeType, isText, fileCount)
     val statusLabel = stringResource(incomingTransferTitle(state.status, state.stage))
     val partyText = when (state.status) {
-        IncomingTransferUiStatus.REQUESTED -> TransferCopy.request(context, state.senderName, countLabel)
+        IncomingTransferUiStatus.REQUESTED -> {
+            val base = TransferCopy.request(context, state.senderName, countLabel)
+            if (gestureHint) base + "\n" + stringResource(R.string.incoming_gesture_hint) else base
+        }
         IncomingTransferUiStatus.RECEIVING -> when {
                 state.cancelRequested -> stringResource(R.string.transfer_canceling)
                 state.stage == LiveStage.FINALIZING -> stringResource(R.string.transfer_saving)

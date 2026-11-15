@@ -66,6 +66,12 @@ object AutoPairStore {
         return System.currentTimeMillis() < entry.windowUntilMillis
     }
 
+    /** True when the device has any entry in the trust table (paired at all). */
+    fun isTrusted(context: Context, key: String): Boolean {
+        if (key.isBlank()) return false
+        return readAll(context).containsKey(key)
+    }
+
     /** Opens/extends the accept-window for one device. Call on every acceptance. */
     fun extendWindow(context: Context, key: String) {
         if (key.isBlank()) return

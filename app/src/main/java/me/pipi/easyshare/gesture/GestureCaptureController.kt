@@ -59,6 +59,8 @@ sealed interface CapturePhase {
 class GestureCaptureController(
     private val context: Context,
     private val callbacks: (CapturePhase) -> Unit,
+    /** Fired when the fist grabs but only a screenshot can represent it. */
+    private val screenFallbackRequested: () -> Unit = {},
 ) {
     private val settings = AppSettings(context)
     private val scanner = AllianceScanner(context)
@@ -90,7 +92,7 @@ class GestureCaptureController(
             haptic(Haptic.GRAB)
             phase(CapturePhase.Grabbing)
             grabbingJob = scope.launch(Dispatchers.IO) {
-                val files = PhotoContentGrabber.grab(
+                val result = PhotoContentGrabber.grab(
                     context,
                     CaptureSessionContext.nodeHints,
                     CaptureSessionContext.sourcePackage,
@@ -98,11 +100,15 @@ class GestureCaptureController(
                 )
                 withContext(Dispatchers.Main.immediate) {
                     if (finished) return@withContext
-                    if (files == null) {
-                        finish(false, NO_PHOTO_MESSAGE)
-                    } else {
-                        content = listOf(files)
-                        phase(readyPhase())
+                    when (result) {
+                        is PhotoContentGrabber.GrabResult.Success -> {
+                            content = listOf(result.file)
+                            phase(readyPhase())
+                        }
+                        PhotoContentGrabber.GrabResult.ScreenCaptureFallback ->
+                            screenFallbackRequested()
+                        PhotoContentGrabber.GrabResult.Failure ->
+                            finish(false, NO_PHOTO_MESSAGE)
                     }
                 }
             }
@@ -335,6 +341,26 @@ class GestureCaptureController(
         if (finished) return
         finished = true
         phase(CapturePhase.Done(success, message))
+    }
+
+    // ------------------------------------------------------ host callbacks
+
+    /** The service resolved a screenshot into content — continue the flow. */
+    fun acceptCapturedContent(files: List<FileInfo>) {
+        if (finished) return
+        content = files
+        phase(readyPhase())
+    }
+
+    /** The service failed a fallback step (e.g. denied screen capture). */
+    fun failFromHost(messageKey: String) = finish(false, messageKey)
+
+    /** Persistent mode: after a Done, start the next grab cycle in place. */
+    fun resetSession() {
+        finished = false
+        content = emptyList()
+        gestureMachine.reset()
+        phase(CapturePhase.Waiting)
     }
 
     // -------------------------------------------------------------- cleanup

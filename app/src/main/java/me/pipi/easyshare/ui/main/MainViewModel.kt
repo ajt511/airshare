@@ -61,6 +61,8 @@ data class MainUiState(
     val autoPairEnabled: Boolean = false,
     val pairWindowMinutes: Int = 5,
     val pairedCount: Int = 0,
+    val gestureReceiveConfirm: Boolean = true,
+    val photoGesturePersistent: Boolean = false,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -97,6 +99,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             autoPairEnabled = settings.autoPairEnabled,
             pairWindowMinutes = settings.pairAcceptWindowMinutes,
             pairedCount = me.pipi.easyshare.pairing.AutoPairStore.count(context),
+            gestureReceiveConfirm = settings.gestureReceiveConfirmEnabled,
+            photoGesturePersistent = settings.photoGestureCameraMode == AppSettings.CAMERA_MODE_PERSISTENT,
         )
     )
     val state: StateFlow<MainUiState> = _state.asStateFlow()
@@ -329,7 +333,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             autoPairEnabled = settings.autoPairEnabled,
             pairWindowMinutes = settings.pairAcceptWindowMinutes,
             pairedCount = me.pipi.easyshare.pairing.AutoPairStore.count(context),
+            gestureReceiveConfirm = settings.gestureReceiveConfirmEnabled,
         )
+    }
+
+    fun setGestureReceiveConfirm(enabled: Boolean) {
+        settings.gestureReceiveConfirmEnabled = enabled
+        refreshAutoPairState()
+    }
+
+    fun setPhotoGesturePersistent(enabled: Boolean) {
+        settings.photoGestureCameraMode =
+            if (enabled) AppSettings.CAMERA_MODE_PERSISTENT else AppSettings.CAMERA_MODE_ON_DEMAND
+        _state.value = _state.value.copy(photoGesturePersistent = enabled)
     }
 
     fun setEnhancedMode(enabled: Boolean) {

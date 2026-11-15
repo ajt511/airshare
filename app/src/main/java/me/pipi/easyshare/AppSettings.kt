@@ -94,4 +94,32 @@ class AppSettings(private val context: Context) {
             prefs.edit { putInt("pairAcceptWindowMinutes", value.coerceIn(1, 60)) }
         }
 
+    /**
+     * How the camera runs during photo-gesture sessions:
+     * [CAMERA_MODE_ON_DEMAND] spawns a short session per photo page (default),
+     * [CAMERA_MODE_PERSISTENT] keeps recognition alive while the user stays
+     * on a photo page and stops when they leave.
+     */
+    var photoGestureCameraMode: String
+        get() = prefs.getString("photoGestureCameraMode", CAMERA_MODE_ON_DEMAND) ?: CAMERA_MODE_ON_DEMAND
+        set(value) {
+            prefs.edit { putString("photoGestureCameraMode", value) }
+        }
+
+    /**
+     * When an incoming transfer arrives, show the confirmation sheet whose
+     * gesture answers are fist=accept / wave=reject. Turning this off
+     * auto-accepts requests from already-paired devices without prompting
+     * (unknown devices still confirm).
+     */
+    var gestureReceiveConfirmEnabled: Boolean
+        get() = prefs.getBoolean("gestureReceiveConfirmEnabled", true)
+        set(value) {
+            prefs.edit { putBoolean("gestureReceiveConfirmEnabled", value) }
+        }
+
+    companion object {
+        const val CAMERA_MODE_ON_DEMAND = "onDemand"
+        const val CAMERA_MODE_PERSISTENT = "persistent"
+    }
 }

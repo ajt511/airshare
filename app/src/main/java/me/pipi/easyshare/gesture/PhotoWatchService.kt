@@ -1,6 +1,7 @@
 package me.pipi.easyshare.gesture
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -17,7 +18,13 @@ import me.pipi.easyshare.utils.TAG
  * current app and the grab gesture sends the viewed image without any tap,
  * jump or confirmation. This service itself stays a cheap event listener;
  * harvesting contentDescription hints from the photo page's node tree
- * (galleries put the file name there) happens on a background thread.
+ * (galleries put the file name there) happens on the main-thread event
+ * callback, along with the largest image view's screen bounds for the
+ * screenshot fallback crop.
+ *
+ * Persistent camera mode: while the setting is on, the capture session
+ * stays alive as long as the user remains on a photo page and is stopped
+ * as soon as they switch to a non-photo window.
  */
 class PhotoWatchService : AccessibilityService() {
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -46,29 +53,48 @@ class PhotoWatchService : AccessibilityService() {
         val windowKey = pkg + "/" + (className ?: "")
         if (windowKey == lastWindowKey) return
         lastWindowKey = windowKey
-        if (!PhotoContextMatcher.matches(pkg, className)) return
+        val persistent = settings.photoGestureCameraMode == AppSettings.CAMERA_MODE_PERSISTENT
+        if (!PhotoContextMatcher.matches(pkg, className)) {
+            // Persistent mode: leaving the photo page ends the session.
+            if (persistent && GestureCaptureService.sessionActive &&
+                GestureCaptureService.runningMode == AppSettings.CAMERA_MODE_PERSISTENT
+            ) {
+                GestureCaptureService.stop(this)
+            }
+            return
+        }
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastTriggeredMillis < COOLDOWN_MILLIS) return
         if (!Settings.canDrawOverlays(this)) return
-        lastTriggeredMillis = now
         if (GestureCaptureService.sessionActive) return
+        lastTriggeredMillis = now
 
         // getRootInActiveWindow is @MainThread; the bounded BFS costs only
         // a few dozen IPC hops on the already-main-thread event callback.
         CaptureSessionContext.sourcePackage = pkg
         CaptureSessionContext.windowKey = windowKey
-        CaptureSessionContext.nodeHints = collectNodeHints()
-        GestureCaptureService.start(this)
+        val scan = scanPhotoPage()
+        CaptureSessionContext.nodeHints = scan.first
+        CaptureSessionContext.photoBounds = scan.second
+        GestureCaptureService.start(this, settings.photoGestureCameraMode)
     }
 
-    /** Bounded BFS over the active window's nodes for descriptive tokens. */
-    private fun collectNodeHints(): List<String> {
+    /**
+     * Bounded BFS over the active window's nodes: descriptive tokens for the
+     * gallery lookup plus the screen bounds of the largest image view (the
+     * crop region for the screenshot fallback).
+     */
+    private fun scanPhotoPage(): Pair<List<String>, Rect?> {
         val root = try {
             rootInActiveWindow
         } catch (_: Exception) {
             null
-        } ?: return emptyList()
+        } ?: return emptyList<String>() to null
         val hints = ArrayList<String>()
+        var bestBounds: Rect? = null
+        var bestArea = 0
+        val metrics = resources.displayMetrics
+        val minArea = metrics.widthPixels * metrics.heightPixels / 12
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
         var visited = 0
@@ -77,11 +103,20 @@ class PhotoWatchService : AccessibilityService() {
             visited++
             node.contentDescription?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let(hints::add)
             node.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let(hints::add)
+            if (node.className?.toString()?.contains("ImageView") == true) {
+                val bounds = Rect()
+                node.getBoundsInScreen(bounds)
+                val area = bounds.width() * bounds.height()
+                if (area > bestArea && area >= minArea) {
+                    bestArea = area
+                    bestBounds = bounds
+                }
+            }
             for (i in 0 until node.childCount) {
                 node.getChild(i)?.let(queue::add)
             }
         }
-        return hints
+        return hints to bestBounds
     }
 
     override fun onInterrupt() = Unit

@@ -186,6 +186,12 @@
     <string name="photo_gesture_badge_camera_start">🖐 相机启动中…</string>
     <string name="photo_gesture_badge_waiting">🖐 伸出手掌，握拳抓取</string>
     <string name="photo_gesture_badge_palm_detected">🖐 已识别手掌 ✓ 握拳抓取</string>
+    <string name="photo_gesture_badge_screen_consent">✊ 请在弹窗中允许屏幕截取</string>
+    <string name="photo_gesture_persistent_title">图片页期间常开相机</string>
+    <string name="photo_gesture_persistent_summary">停留在图片页面时识别保持开启，可连续抓图；离开页面自动关闭（默认：每次进入页面短暂开启）</string>
+    <string name="gesture_receive_confirm_title">接收前手势确认</string>
+    <string name="gesture_receive_confirm_summary">收到传输时弹窗用手势应答：握拳接受、摆手拒绝；关闭后已配对设备直接接收</string>
+    <string name="incoming_gesture_hint">✊ 握拳接受 · 👋 摆手拒绝（也可点下方按钮）</string>
     <string name="photo_gesture_badge_grabbing">✊ 正在抓取图片…</string>
     <string name="photo_gesture_badge_ready_with_target">✊ 已抓取 → %1$s（侧倾切换设备）</string>
     <string name="photo_gesture_badge_ready_no_target">✊ 已抓取 · 未发现设备</string>

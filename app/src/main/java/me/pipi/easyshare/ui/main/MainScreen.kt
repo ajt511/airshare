@@ -121,6 +121,8 @@ fun MainScreen(
     onAutoPairChanged: (Boolean) -> Unit = {},
     onPairWindowChanged: (Int) -> Unit = {},
     onClearAutoPair: () -> Unit = {},
+    onGestureReceiveConfirmChanged: (Boolean) -> Unit = {},
+    onPhotoGesturePersistentChanged: (Boolean) -> Unit = {},
 ) {
     var showNameDialog by rememberSaveable { mutableStateOf(false) }
     var showBrandDialog by rememberSaveable { mutableStateOf(false) }
@@ -276,6 +278,16 @@ fun MainScreen(
                     summary = stringResource(R.string.auto_pair_clear),
                     onClick = onClearAutoPair,
                 )
+                SettingDivider()
+                NativeSettingItem(
+                    title = stringResource(R.string.gesture_receive_confirm_title),
+                    summary = stringResource(R.string.gesture_receive_confirm_summary),
+                    checked = state.gestureReceiveConfirm,
+                    onClick = { onGestureReceiveConfirmChanged(!state.gestureReceiveConfirm) },
+                    trailing = {
+                        Switch(checked = state.gestureReceiveConfirm, onCheckedChange = null)
+                    },
+                )
             }
         }
         Spacer(Modifier.height(20.dp))
@@ -325,6 +337,16 @@ fun MainScreen(
                 onClick = { onPhotoGestureChanged(!state.photoGesture) },
                 trailing = {
                     Switch(checked = state.photoGesture, onCheckedChange = null)
+                },
+            )
+            SettingDivider()
+            NativeSettingItem(
+                title = stringResource(R.string.photo_gesture_persistent_title),
+                summary = stringResource(R.string.photo_gesture_persistent_summary),
+                checked = state.photoGesturePersistent,
+                onClick = { onPhotoGesturePersistentChanged(!state.photoGesturePersistent) },
+                trailing = {
+                    Switch(checked = state.photoGesturePersistent, onCheckedChange = null)
                 },
             )
             SettingDivider()
