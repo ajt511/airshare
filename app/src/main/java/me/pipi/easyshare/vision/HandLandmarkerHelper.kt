@@ -42,8 +42,10 @@ class HandLandmarkerHelper(
                 .setMinTrackingConfidence(0.5f)
                 .setResultListener { result, _ -> emit(result) }
                 .setErrorListener { error ->
-                    Log.e(TAG, "Hand landmarker error", error)
-                    onError(error.message ?: "hand landmarker error")
+                    // LIVE_STREAM runtime errors (e.g. timestamp mismatches)
+                    // do not stop the preview; surfacing them would latch the
+                    // camera-error card while the camera clearly works.
+                    Log.w(TAG, "Hand landmarker runtime error", error)
                 }
                 .build()
             landmarker = HandLandmarker.createFromOptions(context, options)

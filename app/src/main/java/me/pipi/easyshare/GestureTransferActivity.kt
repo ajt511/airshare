@@ -229,6 +229,9 @@ class GestureTransferActivity : ComponentActivity() {
                     CameraSelector.DEFAULT_FRONT_CAMERA,
                     *useCases.toTypedArray(),
                 )
+                // The bind succeeded — clear any transient error latched
+                // earlier (e.g. during the cold-start pre-surface bind).
+                viewModel.onCameraReady()
             } catch (error: Exception) {
                 Log.e(TAG, "Camera bind failed", error)
                 runOnUiThread { viewModel.onCameraError() }

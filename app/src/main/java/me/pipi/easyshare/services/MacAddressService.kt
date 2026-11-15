@@ -82,4 +82,79 @@ class MacAddressService(private val context: Context): IMacAddressService.Stub()
         }
         return null
     }
+
+    override fun listRecentImageFiles(
+        rootDir: String?,
+        sinceMillis: Long,
+        maxDepth: Int,
+        maxCount: Int,
+    ): Array<String> {
+        val root = rootDir?.let(::File) ?: return emptyArray()
+        if (!root.isDirectory) return emptyArray()
+        val deadline = System.currentTimeMillis() + SCAN_BUDGET_MS
+        val found = ArrayList<Pair<Long, File>>()
+        walkRecentImages(root, 0, maxDepth, sinceMillis, deadline, found)
+        found.sortByDescending { it.first }
+        return found.take(maxCount)
+            .map { "${it.first}|${it.second.absolutePath}" }
+            .toTypedArray()
+    }
+
+    /** Bounded walk: depth cap, file cap and a wall-clock budget so a
+     *  sprawling cache tree cannot stall the grab gesture. */
+    private fun walkRecentImages(
+        dir: File,
+        depth: Int,
+        maxDepth: Int,
+        sinceMillis: Long,
+        deadline: Long,
+        out: ArrayList<Pair<Long, File>>,
+    ) {
+        if (depth > maxDepth || System.currentTimeMillis() > deadline) return
+        val entries = dir.listFiles() ?: return
+        for (entry in entries) {
+            if (System.currentTimeMillis() > deadline) return
+            if (entry.isDirectory) {
+                if (entry.name.equals("thumb", true) || entry.name.startsWith(".thumb", true)) continue
+                walkRecentImages(entry, depth + 1, maxDepth, sinceMillis, deadline, out)
+            } else if (
+                entry.isFile &&
+                entry.lastModified() >= sinceMillis &&
+                isImageFileName(entry.name)
+            ) {
+                out.add(entry.lastModified() to entry)
+                if (out.size >= MAX_SCAN_FILES) return
+            }
+        }
+    }
+
+    override fun openImageFile(path: String?): ParcelFileDescriptor? {
+        val file = path?.let(::File) ?: return null
+        // Restrict this shell-privileged reader to image files under shared
+        // storage (where QQ/WeChat keep their view caches).
+        val clean = try {
+            file.canonicalPath
+        } catch (_: Exception) {
+            return null
+        }
+        if (!clean.startsWith("/storage/emulated/0/") && !clean.startsWith("/sdcard/")) return null
+        if (!isImageFileName(file.name)) return null
+        return try {
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+        } catch (error: Exception) {
+            Log.w(TAG, "openImageFile failed", error)
+            null
+        }
+    }
+
+    private fun isImageFileName(name: String): Boolean {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return ext in IMAGE_EXTENSIONS
+    }
+
+    companion object {
+        private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp")
+        private const val SCAN_BUDGET_MS = 2_000L
+        private const val MAX_SCAN_FILES = 64
+    }
 }

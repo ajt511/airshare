@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
@@ -135,7 +136,7 @@ object ShizukuUtils {
         return withMacService { it.p2pMacAddress }
     }
 
-    private suspend fun withMacService(read: (IMacAddressService) -> String?): String? {
+    private suspend fun <T> withMacService(read: (IMacAddressService) -> T?): T? {
         return try {
             val current = synchronized(binderLock) { macService }
             val service = current ?: run {
@@ -151,11 +152,38 @@ object ShizukuUtils {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            Log.e(ShizukuUtils.TAG, "Failed to obtain local address: ${e.javaClass.simpleName}")
+            Log.e(ShizukuUtils.TAG, "Failed to call user service: ${e.javaClass.simpleName}")
             null
         }
     }
 
+    /**
+     * Image cache candidates under [rootDir] (e.g. QQ/WeChat private cache
+     * trees the app itself cannot read), newest first as (mtime, path).
+     */
+    suspend fun listRecentImageFiles(
+        rootDir: String,
+        sinceMillis: Long,
+        maxDepth: Int = 8,
+        maxCount: Int = 8,
+    ): List<Pair<Long, String>> {
+        return withMacService { service ->
+            service.listRecentImageFiles(rootDir, sinceMillis, maxDepth, maxCount)
+                ?.mapNotNull { entry ->
+                    val split = entry.indexOf('|')
+                    if (split <= 0) return@mapNotNull null
+                    val mtime = entry.substring(0, split).toLongOrNull() ?: return@mapNotNull null
+                    mtime to entry.substring(split + 1)
+                }
+                .orEmpty()
+        } ?: emptyList()
+    }
+
+    /** Opens one cache image through the user service's shell privileges. */
+    suspend fun openImageFile(path: String): ParcelFileDescriptor? {
+        return withMacService { service -> service.openImageFile(path) }
+    }
+
     private const val SERVICE_CONNECT_TIMEOUT_MS = 5_000L
-    private const val USER_SERVICE_REVISION = 1
+    private const val USER_SERVICE_REVISION = 2
 }

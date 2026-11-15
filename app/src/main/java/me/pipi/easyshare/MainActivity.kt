@@ -1,6 +1,9 @@
 package me.pipi.easyshare
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -14,6 +17,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
@@ -200,6 +204,28 @@ class MainActivity : ComponentActivity() {
     private fun photoGesturePermissionsGranted(): Boolean =
         Settings.canDrawOverlays(this) && PhotoWatchService.isEnabled(this)
 
+    private val mediaPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { /* non-blocking: grabber degrades to a badge hint when missing */ }
+
+    /** Media read access so the grab gesture can match the viewed gallery
+     *  image against MediaStore; optional — capture works without it. */
+    private fun requestMediaPermissionsIfNeeded() {
+        val wanted = buildList {
+            if (Build.VERSION.SDK_INT >= 33) {
+                add(Manifest.permission.READ_MEDIA_IMAGES)
+                if (Build.VERSION.SDK_INT >= 34) {
+                    add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                }
+            } else {
+                add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+        }.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (wanted.isNotEmpty()) mediaPermissionLauncher.launch(wanted.toTypedArray())
+    }
+
     private fun setPhotoGesture(enabled: Boolean) {
         if (!enabled) {
             pendingPhotoGesture = false
@@ -235,6 +261,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (photoGesturePermissionsGranted()) {
+            requestMediaPermissionsIfNeeded()
             pendingPhotoGesture = false
             viewModel.setPhotoGesture(true)
         }

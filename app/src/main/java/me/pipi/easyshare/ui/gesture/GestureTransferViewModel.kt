@@ -158,6 +158,11 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
         _state.update { it.copy(cameraError = true) }
     }
 
+    /** Clears a latched error once the camera actually binds and renders. */
+    fun onCameraReady() {
+        _state.update { it.copy(cameraError = false) }
+    }
+
     fun onRoll(degrees: Float) = tiltSelector.onRoll(degrees)
 
     fun stepSelection(steps: Int) {
