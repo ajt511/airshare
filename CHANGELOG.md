@@ -1,5 +1,9 @@
 # 更新日志
 
+## 1.4.1-beta
+
+- 修复：「看图即手势」的无障碍服务从未出现在系统设置的无障碍服务列表中（缺 `android.accessibilityservice.AccessibilityService` intent-filter，系统扫描不到该服务；exported 对齐主流无障碍应用改为 true，签名权限 BIND_ACCESSIBILITY_SERVICE 保护不受影响）
+
 ## 1.4.0-beta
 
 - 新增「自动配对（测试版）」：附近安装了手势互传的设备自动配对；对已配对设备，同意一次其传输请求后，有效期（默认 5 分钟，1~60 分钟可调）内后续请求自动接受
