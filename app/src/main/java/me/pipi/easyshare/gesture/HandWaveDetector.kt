@@ -35,7 +35,9 @@ class HandWaveDetector(
     private var minX = 0f
     private var maxX = 0f
     private var burstStartMillis = 0L
-    private var lastFireMillis = -Long.MAX_VALUE
+    // Half MIN_VALUE so `timestamp - lastFireMillis` cannot overflow on the
+    // very first fire check (a full MIN_VALUE would wrap back negative).
+    private var lastFireMillis = Long.MIN_VALUE / 2
     private var fired = false
 
     fun onFrame(frame: GestureFrame, timestampMillis: Long) {
