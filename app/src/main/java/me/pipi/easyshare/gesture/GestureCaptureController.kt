@@ -33,8 +33,11 @@ import me.pipi.easyshare.utils.TransferUiCoordinator
 
 /** Badge-visible progress of one capture session. */
 sealed interface CapturePhase {
-    /** Palm armed — waiting for the fist. */
+    /** No hand yet — waiting for an open palm. */
     data object Waiting : CapturePhase
+
+    /** Open palm recognized — grab gesture is armed. */
+    data object PalmReady : CapturePhase
 
     /** Fist held; resolving the viewed image. */
     data object Grabbing : CapturePhase
@@ -77,7 +80,7 @@ class GestureCaptureController(
 
     private val gestureListener = object : GestureStateMachine.Listener {
         override fun onPalmHeld() {
-            phase(CapturePhase.Waiting)
+            phase(CapturePhase.PalmReady)
             haptic(Haptic.TICK)
         }
 
@@ -152,6 +155,9 @@ class GestureCaptureController(
         if (content.isNotEmpty()) phase(readyPhase())
     }
 
+    /** Devices already trusted this session (avoids rewriting prefs each scan). */
+    private val trustedIds = mutableSetOf<String>()
+
     private fun mergeTargets(
         allianceDevices: List<DiscoveredDevice>,
         lanPeers: Map<String, LanDiscovery.LanPeer>,
@@ -182,6 +188,15 @@ class GestureCaptureController(
             }
         }
         targets = merged
+        // Discovery-based pairing: newly seen devices land in the trust
+        // table (no-op while auto-pairing is off; retried once it's on).
+        merged.forEach { target ->
+            if (target.id !in trustedIds &&
+                me.pipi.easyshare.pairing.AutoPairStore.trust(context, target.id, target.name, target.brandId)
+            ) {
+                trustedIds.add(target.id)
+            }
+        }
         if (selectedId == null || merged.none { it.id == selectedId }) {
             selectedId = merged.firstOrNull { !it.isLan }?.id ?: merged.firstOrNull()?.id
         }

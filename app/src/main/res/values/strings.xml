@@ -190,6 +190,7 @@
     <string name="photo_gesture_enable_hint">Enable the GestureShare accessibility service, then return here</string>
     <string name="photo_gesture_badge_camera_start">🖐 Starting camera…</string>
     <string name="photo_gesture_badge_waiting">🖐 Show palm, then grab</string>
+    <string name="photo_gesture_badge_palm_detected">🖐 Palm detected ✓ fist to grab</string>
     <string name="photo_gesture_badge_grabbing">✊ Grabbing image…</string>
     <string name="photo_gesture_badge_ready_with_target">✊ Grabbed → %1$s (tilt to switch)</string>
     <string name="photo_gesture_badge_ready_no_target">✊ Grabbed · no device found</string>

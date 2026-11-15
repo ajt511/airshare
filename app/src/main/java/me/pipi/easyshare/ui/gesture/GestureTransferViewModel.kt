@@ -190,6 +190,9 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
 
     private var latestAllianceDevices: List<DiscoveredDevice> = emptyList()
 
+    /** Devices already trusted this session (avoids rewriting prefs each scan). */
+    private val trustedIds = mutableSetOf<String>()
+
     private fun mergeTargets(allianceDevices: List<DiscoveredDevice>, lanPeers: Map<String, LanDiscovery.LanPeer>) {
         latestAllianceDevices = allianceDevices
         val targets = buildList {
@@ -226,6 +229,17 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
                     else -> targets.firstOrNull { !it.isLan }?.id ?: targets.first().id
                 },
             )
+        }
+        // Discovery-based pairing: newly seen devices land in the trust
+        // table (no-op while auto-pairing is off; retried once it's on).
+        targets.forEach { target ->
+            if (target.id !in trustedIds &&
+                me.pipi.easyshare.pairing.AutoPairStore.trust(
+                    getApplication(), target.id, target.name, target.brandId,
+                )
+            ) {
+                trustedIds.add(target.id)
+            }
         }
     }
 

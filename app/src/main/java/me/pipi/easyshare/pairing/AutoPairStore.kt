@@ -43,9 +43,10 @@ object AutoPairStore {
         }
     }
 
-    /** Writes/refreshes a device entry (discovery or incoming request). */
-    fun trust(context: Context, key: String, name: String, brandId: Int?) {
-        if (key.isBlank() || !AppSettings(context).autoPairEnabled) return
+    /** Writes/refreshes a device entry (discovery or incoming request).
+     *  Returns false when auto-pairing is off (nothing written). */
+    fun trust(context: Context, key: String, name: String, brandId: Int?): Boolean {
+        if (key.isBlank() || !AppSettings(context).autoPairEnabled) return false
         val map = readAll(context)
         val old = map[key]
         map[key] = Entry(
@@ -55,6 +56,7 @@ object AutoPairStore {
             windowUntilMillis = old?.windowUntilMillis ?: 0L,
         )
         writeAll(context, map)
+        return true
     }
 
     /** True when the device has a currently open accept-window. */

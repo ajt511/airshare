@@ -221,10 +221,14 @@ class GestureCaptureService : LifecycleService() {
 
     private fun onPhase(phase: CapturePhase) {
         if (destroyed) return
-        preGrabStage = phase is CapturePhase.Waiting || phase is CapturePhase.Grabbing
+        preGrabStage = phase is CapturePhase.Waiting ||
+            phase is CapturePhase.PalmReady ||
+            phase is CapturePhase.Grabbing
         when (phase) {
             CapturePhase.Waiting ->
                 showBadge(getString(R.string.photo_gesture_badge_waiting))
+            CapturePhase.PalmReady ->
+                showBadge(getString(R.string.photo_gesture_badge_palm_detected))
             CapturePhase.Grabbing -> {
                 showBadge(getString(R.string.photo_gesture_badge_grabbing))
                 armTimeout(GRABBING_TIMEOUT_MILLIS)

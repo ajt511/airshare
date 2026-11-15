@@ -185,6 +185,7 @@
     <string name="photo_gesture_enable_hint">请在列表中开启「手势互传」的无障碍服务，然后返回本应用</string>
     <string name="photo_gesture_badge_camera_start">🖐 相机启动中…</string>
     <string name="photo_gesture_badge_waiting">🖐 伸出手掌，握拳抓取</string>
+    <string name="photo_gesture_badge_palm_detected">🖐 已识别手掌 ✓ 握拳抓取</string>
     <string name="photo_gesture_badge_grabbing">✊ 正在抓取图片…</string>
     <string name="photo_gesture_badge_ready_with_target">✊ 已抓取 → %1$s（侧倾切换设备）</string>
     <string name="photo_gesture_badge_ready_no_target">✊ 已抓取 · 未发现设备</string>

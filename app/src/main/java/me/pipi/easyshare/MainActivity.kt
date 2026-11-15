@@ -164,6 +164,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         viewModel.refreshReceiveState()
         viewModel.refreshPhotoGestureState()
+        viewModel.refreshAutoPairState()
         // Completing the flow: user returns from accessibility settings with
         // the service enabled — finish the pending enable here.
         if (pendingPhotoGesture && photoGesturePermissionsGranted()) {
