@@ -7,11 +7,13 @@ import android.content.AttributionSource
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.ParcelFileDescriptor
 import android.os.Process
 import android.util.Log
 import androidx.annotation.RequiresApi
 import me.pipi.easyshare.IMacAddressService
 import me.pipi.easyshare.utils.TAG
+import java.io.File
 import java.net.NetworkInterface
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
