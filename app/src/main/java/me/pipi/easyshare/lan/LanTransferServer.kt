@@ -183,15 +183,30 @@ class LanTransferServer(private val context: Context) {
         }
         val taskId = newTaskId()
         val session = LanSession(request)
-        sessions[taskId] = session
         val isText = request.textContent != null
+        val fileCount = if (isText) 1 else request.files.size
+        val totalSize = if (isText) 0L else request.files.sumOf { it.size }
+        try {
+            // Same limits as the BLE channel: reject absurd counts/sizes up
+            // front instead of discovering them while writing to disk.
+            TransferLimits.validateMetadata(
+                fileCount = fileCount,
+                totalSize = totalSize,
+                textSize = request.textContent?.toByteArray(Charsets.UTF_8)?.size?.toLong(),
+            )
+        } catch (error: Exception) {
+            Log.w(TAG, "Rejected LAN prepare with invalid metadata", error)
+            respondPrepare(call, LanPrepareResponse(-1, false, "bad request"))
+            return
+        }
+        sessions[taskId] = session
         val senderKey = "lan:${request.senderId}"
         val state = IncomingTransferUiState(
             taskId = taskId,
             senderName = request.senderName,
             fileName = request.files.firstOrNull()?.name ?: request.textContent.orEmpty(),
-            fileCount = if (isText) 1 else request.files.size,
-            totalSize = if (isText) 0L else request.files.sumOf { it.size },
+            fileCount = fileCount,
+            totalSize = totalSize,
             brandId = request.senderBrandId.takeIf { it >= 0 },
             status = IncomingTransferUiStatus.REQUESTED,
             isText = isText,
@@ -360,6 +375,13 @@ class LanTransferServer(private val context: Context) {
         }
         // Text task: put the received payload on the clipboard; the incoming
         // sheet already shows "copied to clipboard" for isText tasks.
+        if (session.meta.textContent != null && session.receivedText == null) {
+            IncomingTransferUiCoordinator.fail(
+                request.taskId, context.getString(R.string.recv_fail),
+            )
+            call.respondText("missing text", status = HttpStatusCode.BadRequest)
+            return
+        }
         session.receivedText?.let { text ->
             try {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
