@@ -25,6 +25,7 @@ class AllianceScanner(private val context: Context) {
     private var scanner: android.bluetooth.le.BluetoothLeScanner? = null
     private val devices = mutableListOf<DiscoveredDevice>()
     private val lock = Any()
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     // BLUETOOTH_SCAN is requested by the hosting screen before calling start();
     // every entry point below degrades gracefully through try-catch.
@@ -35,7 +36,7 @@ class AllianceScanner(private val context: Context) {
         val bleScanner = try {
             adapter?.bluetoothLeScanner
         } catch (error: Exception) {
-            Log.w(TAG, "BLE scanner unavailable", error)
+            Log.w(TAG, "Bluetooth LE scanner unavailable", error)
             null
         }
         if (bleScanner == null) {
@@ -43,6 +44,11 @@ class AllianceScanner(private val context: Context) {
             return
         }
         synchronized(lock) { devices.clear() }
+        // Scan results arrive on a binder thread; consumers update UI (radar,
+        // overlay badge, prefs) — always hand the list over on the main thread.
+        val deliver: (List<DiscoveredDevice>) -> Unit = { list ->
+            mainHandler.post { onUpdate(list) }
+        }
         val scanCallback = object : ScanCallback() {
             override fun onScanFailed(errorCode: Int) {
                 Log.e(TAG, "BLE scan failed: $errorCode")
@@ -86,10 +92,20 @@ class AllianceScanner(private val context: Context) {
                 )
                 val changed = synchronized(lock) {
                     val existing = devices.indexOfFirst { it.id == senderId }
-                    if (existing >= 0) devices[existing] = device else devices.add(device)
-                    true
+                    if (existing >= 0) {
+                        // Same broadcast again — skip unchanged re-deliveries so
+                        // LOW_LATENCY scanning does not spam the consumer.
+                        if (devices[existing] == device) false
+                        else {
+                            devices[existing] = device
+                            true
+                        }
+                    } else {
+                        devices.add(device)
+                        true
+                    }
                 }
-                if (changed) synchronized(lock) { onUpdate(devices.toList()) }
+                if (changed) deliver(devices.toList())
             }
         }
         callback = scanCallback

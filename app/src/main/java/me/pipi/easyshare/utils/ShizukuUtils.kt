@@ -169,13 +169,15 @@ object ShizukuUtils {
     /**
      * Image cache candidates under [rootDir] (e.g. QQ/WeChat private cache
      * trees the app itself cannot read), newest first as (mtime, path).
+     * Returns null when the user service itself failed (old version, binder
+     * gone) — callers treat that as "fall back to the screenshot path".
      */
     suspend fun listRecentImageFiles(
         rootDir: String,
         sinceMillis: Long,
         maxDepth: Int = 8,
         maxCount: Int = 8,
-    ): List<Pair<Long, String>> {
+    ): List<Pair<Long, String>>? {
         return withMacService { service ->
             service.listRecentImageFiles(rootDir, sinceMillis, maxDepth, maxCount)
                 ?.mapNotNull { entry ->
@@ -185,7 +187,7 @@ object ShizukuUtils {
                     mtime to entry.substring(split + 1)
                 }
                 .orEmpty()
-        } ?: emptyList()
+        }
     }
 
     /** Opens one cache image through the user service's shell privileges. */

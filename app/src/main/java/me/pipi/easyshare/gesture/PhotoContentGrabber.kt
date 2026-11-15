@@ -177,6 +177,7 @@ object PhotoContentGrabber {
         val since = atMillis - CACHE_WINDOW_MILLIS
         for (root in roots) {
             val entries = ShizukuUtils.listRecentImageFiles(root, since)
+                ?: return GrabResult.ScreenCaptureFallback // user service broken (e.g. stale version)
             val best = pickMostRecent(entries, atMillis, CACHE_WINDOW_MILLIS) ?: continue
             val plain = readPlainBytes(pkg, best) ?: continue
             val outFile = writeToCache(context, plain, atMillis) ?: continue
