@@ -47,6 +47,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -117,6 +118,9 @@ fun MainScreen(
     onPhotoGestureChanged: (Boolean) -> Unit = {},
     onPhotoGestureSetup: () -> Unit = {},
     onCompatAction: (String) -> Unit = {},
+    onAutoPairChanged: (Boolean) -> Unit = {},
+    onPairWindowChanged: (Int) -> Unit = {},
+    onClearAutoPair: () -> Unit = {},
 ) {
     var showNameDialog by rememberSaveable { mutableStateOf(false) }
     var showBrandDialog by rememberSaveable { mutableStateOf(false) }
@@ -233,6 +237,44 @@ fun MainScreen(
                     title = stringResource(R.string.compat_popup_title),
                     summary = stringResource(R.string.compat_popup_summary),
                     onClick = { onCompatAction("popup") },
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        SettingsCard {
+            NativeSettingItem(
+                title = stringResource(R.string.auto_pair_title),
+                summary = stringResource(R.string.auto_pair_summary),
+                checked = state.autoPairEnabled,
+                onClick = { onAutoPairChanged(!state.autoPairEnabled) },
+                trailing = {
+                    Switch(checked = state.autoPairEnabled, onCheckedChange = null)
+                },
+            )
+            if (state.autoPairEnabled) {
+                SettingDivider()
+                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+                    Text(
+                        text = stringResource(R.string.auto_pair_window_title, state.pairWindowMinutes),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.auto_pair_window_summary),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = state.pairWindowMinutes.toFloat(),
+                        onValueChange = { onPairWindowChanged(it.toInt().coerceIn(1, 60)) },
+                        valueRange = 1f..60f,
+                        steps = 58,
+                    )
+                }
+                SettingDivider()
+                NativeSettingItem(
+                    title = stringResource(R.string.auto_pair_paired_count, state.pairedCount),
+                    summary = stringResource(R.string.auto_pair_clear),
+                    onClick = onClearAutoPair,
                 )
             }
         }

@@ -931,12 +931,26 @@ class P2pReceiverService : BaseP2pService() {
                                 mimeType = sendRequestPayload.optString("mimeType").takeIf { it.isNotBlank() },
                                 receiveDirectoryUri = receiveDirectoryUri(customDir).toString(),
                             )
+                        val senderKey = "ble:${peerAddress ?: senderName}"
                         check(IncomingTransferUiCoordinator.beginRequest(
                             requestState,
                             SystemClock.elapsedRealtime() + INCOMING_REQUEST_TIMEOUT_MS,
                             getString(R.string.incoming_transfer_timeout),
                             getString(R.string.cancelled_by_user_local),
+                            senderKey = senderKey,
                         ))
+                        // Auto-pairing (beta): paired devices with an open
+                        // accept-window are accepted without prompting.
+                        if (AppSettings(this).autoPairEnabled) {
+                            me.pipi.easyshare.pairing.AutoPairStore.trust(
+                                this, senderKey, senderName, resolvedSenderBrandId,
+                            )
+                            if (me.pipi.easyshare.pairing.AutoPairStore.hasOpenWindow(this, senderKey)) {
+                                IncomingTransferUiCoordinator.decide(
+                                    localTaskId, IncomingRequestDecision.ACCEPTED,
+                                )
+                            }
+                        }
                         val incomingIntent = IncomingTransferActivity.createIntent(
                             context = this@P2pReceiverService,
                             state = requestState,
@@ -963,7 +977,11 @@ class P2pReceiverService : BaseP2pService() {
                         val userResponse = IncomingTransferUiCoordinator.awaitDecision(localTaskId)
 
                         when (userResponse) {
-                            IncomingRequestDecision.ACCEPTED -> Unit
+                            IncomingRequestDecision.ACCEPTED -> {
+                                // One acceptance opens the accept-window for
+                                // this device (auto-pairing beta).
+                                me.pipi.easyshare.pairing.AutoPairStore.extendWindow(this, senderKey)
+                            }
                             IncomingRequestDecision.REJECTED -> {
                                 showTransferResult(localTaskId, createFailedNotification(
                                     localTaskId, CancelledByUserException(false), contentIntent, resolvedSenderBrandId,

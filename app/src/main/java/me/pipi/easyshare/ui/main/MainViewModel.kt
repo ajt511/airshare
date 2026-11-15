@@ -58,6 +58,9 @@ data class MainUiState(
     val photoGestureReady: Boolean = false,
     val vendorDisplayName: String = "",
     val showBackgroundPopupRow: Boolean = false,
+    val autoPairEnabled: Boolean = false,
+    val pairWindowMinutes: Int = 5,
+    val pairedCount: Int = 0,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -91,6 +94,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             photoGestureReady = isPhotoGestureReady(),
             vendorDisplayName = vendorInfo.displayName,
             showBackgroundPopupRow = vendorInfo.vendor == me.pipi.easyshare.compat.VendorCompat.Vendor.MIUI_HYPEROS,
+            autoPairEnabled = settings.autoPairEnabled,
+            pairWindowMinutes = settings.pairAcceptWindowMinutes,
+            pairedCount = me.pipi.easyshare.pairing.AutoPairStore.count(context),
         )
     )
     val state: StateFlow<MainUiState> = _state.asStateFlow()
@@ -300,6 +306,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = _state.value.copy(
             photoGesture = settings.photoGestureEnabled,
             photoGestureReady = isPhotoGestureReady(),
+        )
+    }
+
+    fun setAutoPair(enabled: Boolean) {
+        settings.autoPairEnabled = enabled
+        refreshAutoPairState()
+    }
+
+    fun setPairWindow(minutes: Int) {
+        settings.pairAcceptWindowMinutes = minutes
+        refreshAutoPairState()
+    }
+
+    fun clearAutoPairEntries() {
+        me.pipi.easyshare.pairing.AutoPairStore.clearAll(context)
+        refreshAutoPairState()
+    }
+
+    fun refreshAutoPairState() {
+        _state.value = _state.value.copy(
+            autoPairEnabled = settings.autoPairEnabled,
+            pairWindowMinutes = settings.pairAcceptWindowMinutes,
+            pairedCount = me.pipi.easyshare.pairing.AutoPairStore.count(context),
         )
     }
 

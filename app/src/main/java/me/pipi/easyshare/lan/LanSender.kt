@@ -60,6 +60,7 @@ class LanSender(private val context: Context) {
         val prepare = LanPrepareRequest(
             senderName = senderName,
             senderBrandId = senderBrandId,
+            senderId = LanDiscovery.localId(),
             textContent = textContent,
             files = metas.map { it.second },
         )

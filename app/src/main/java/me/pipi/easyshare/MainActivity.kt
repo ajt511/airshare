@@ -125,6 +125,12 @@ class MainActivity : ComponentActivity() {
                     },
                     onPhotoGestureChanged = ::setPhotoGesture,
                     onPhotoGestureSetup = ::startPhotoGestureSetup,
+                    onAutoPairChanged = viewModel::setAutoPair,
+                    onPairWindowChanged = viewModel::setPairWindow,
+                    onClearAutoPair = {
+                        viewModel.clearAutoPairEntries()
+                        Toast.makeText(this, R.string.auto_pair_cleared, Toast.LENGTH_SHORT).show()
+                    },
                     onCompatAction = { action ->
                         when (action) {
                             "autostart" -> VendorCompat.openAutoStartSettings(this)

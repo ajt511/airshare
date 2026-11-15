@@ -80,4 +80,18 @@ class AppSettings(private val context: Context) {
             prefs.edit { putBoolean("photoGestureEnabled", value) }
         }
 
+    /** Auto-pairing (beta): discovered GestureShare devices are trusted automatically. */
+    var autoPairEnabled: Boolean
+        get() = prefs.getBoolean("autoPairEnabled", false)
+        set(value) {
+            prefs.edit { putBoolean("autoPairEnabled", value) }
+        }
+
+    /** How long one acceptance stays valid for a paired device, in minutes. */
+    var pairAcceptWindowMinutes: Int
+        get() = prefs.getInt("pairAcceptWindowMinutes", 5)
+        set(value) {
+            prefs.edit { putInt("pairAcceptWindowMinutes", value.coerceIn(1, 60)) }
+        }
+
 }

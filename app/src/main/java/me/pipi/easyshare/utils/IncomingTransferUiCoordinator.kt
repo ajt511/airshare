@@ -24,6 +24,7 @@ object IncomingTransferUiCoordinator {
         val timeoutMessage: String,
         val rejectMessage: String?,
         val cancelGuardMillis: Long,
+        val senderKey: String? = null,
     ) {
         val result = CompletableDeferred<IncomingRequestDecision>()
         var decision: IncomingRequestDecision? = null
@@ -42,6 +43,7 @@ object IncomingTransferUiCoordinator {
         timeoutMessage: String,
         rejectMessage: String? = null,
         cancelGuardMillis: Long = 1_500L,
+        senderKey: String? = null,
     ): Boolean {
         require(state.status == IncomingTransferUiStatus.REQUESTED)
         require(expiresAtMillis >= 0L && cancelGuardMillis >= 0L)
@@ -51,7 +53,9 @@ object IncomingTransferUiCoordinator {
         // Result PendingIntents own terminal snapshots; the live owner must not retain every file list forever.
         _states.value = _states.value.filterValues { !it.status.isTerminal() }
         visibleSheets.keys.retainAll(_states.value.keys)
-        requests[state.taskId] = PendingRequest(expiresAtMillis, timeoutMessage, rejectMessage, cancelGuardMillis)
+        requests[state.taskId] = PendingRequest(
+            expiresAtMillis, timeoutMessage, rejectMessage, cancelGuardMillis, senderKey,
+        )
         // A launch attempt is not visibility: blocked background launches have no Activity acknowledgement.
         publish(state.copy(requestExpiresAtMillis = expiresAtMillis, cancelEnabledAtMillis = 0L, monitorInBackground = true))
         return true
@@ -176,6 +180,10 @@ object IncomingTransferUiCoordinator {
     fun get(taskId: Int): IncomingTransferUiState? = _states.value[taskId]
 
     fun getActive(): IncomingTransferUiState? = _states.value.values.lastOrNull { !it.status.isTerminal() }
+
+    /** Channel-scoped sender key recorded at request time (for auto-pairing). */
+    @Synchronized
+    fun senderKeyOf(taskId: Int): String? = requests[taskId]?.senderKey
 
     suspend fun awaitRequestPresentation(taskId: Int, timeoutMillis: Long = 1_000L): Boolean =
         withTimeoutOrNull(timeoutMillis) {

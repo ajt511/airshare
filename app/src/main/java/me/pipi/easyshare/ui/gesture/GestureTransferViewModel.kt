@@ -100,6 +100,8 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
         }
 
         override fun onGrabbed() {
+            // Auto-pairing (beta): a fist also agrees to a pending request.
+            if (settings.autoPairEnabled) acceptPendingIncoming()
             updatePhase(GesturePhase.Grabbed)
             haptic(Haptic.GRAB)
         }
@@ -307,10 +309,25 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
     /** Open palm with empty hands accepts a pending incoming request. */
     private fun autoAcceptIncoming() {
         if (!settings.palmAutoAcceptEnabled) return
+        acceptPendingIncoming()
+    }
+
+    /**
+     * Accepts the first pending incoming request and re-opens its accept
+     * window (auto-pairing beta). A no-op when nothing is pending.
+     */
+    private fun acceptPendingIncoming() {
         val pending = IncomingTransferUiCoordinator.states.value.values.firstOrNull {
             it.status == IncomingTransferUiStatus.REQUESTED
         } ?: return
-        IncomingTransferUiCoordinator.decide(pending.taskId, IncomingRequestDecision.ACCEPTED)
+        val accepted = IncomingTransferUiCoordinator.decide(
+            pending.taskId, IncomingRequestDecision.ACCEPTED,
+        )
+        if (accepted) {
+            IncomingTransferUiCoordinator.senderKeyOf(pending.taskId)?.let { key ->
+                me.pipi.easyshare.pairing.AutoPairStore.extendWindow(getApplication(), key)
+            }
+        }
     }
 
     private fun schedulePhaseReset() {

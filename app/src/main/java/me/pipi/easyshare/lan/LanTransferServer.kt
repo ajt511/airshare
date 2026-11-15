@@ -27,6 +27,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.pipi.easyshare.AppSettings
+import me.pipi.easyshare.pairing.AutoPairStore
 import me.pipi.easyshare.R
 import me.pipi.easyshare.models.IncomingTransferUiState
 import me.pipi.easyshare.models.IncomingTransferUiStatus
@@ -99,6 +100,7 @@ class LanTransferServer(private val context: Context) {
         val taskId = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
         sessions[taskId] = LanSession(request)
         val isText = request.textContent != null
+        val senderKey = "lan:${request.senderId}"
         val published = IncomingTransferUiCoordinator.beginRequest(
             IncomingTransferUiState(
                 taskId = taskId,
@@ -113,19 +115,31 @@ class LanTransferServer(private val context: Context) {
             ),
             expiresAtMillis = System.currentTimeMillis() + REQUEST_TIMEOUT_MILLIS,
             timeoutMessage = context.getString(R.string.incoming_transfer_timeout),
+            senderKey = senderKey,
         )
         if (!published) {
             sessions.remove(taskId)
             respondPrepare(call, LanPrepareResponse(-1, false, "busy"))
             return
         }
-        when (IncomingTransferUiCoordinator.awaitDecision(taskId)) {
-            IncomingRequestDecision.ACCEPTED ->
-                respondPrepare(call, LanPrepareResponse(taskId, true))
-            else -> {
-                sessions.remove(taskId)
-                respondPrepare(call, LanPrepareResponse(-1, false, "rejected"))
+        // Auto-pairing (beta): trust + auto-accept for devices with an open
+        // accept-window; every acceptance re-opens the window.
+        val settings = AppSettings(context)
+        if (settings.autoPairEnabled) {
+            AutoPairStore.trust(
+                context, senderKey, request.senderName, request.senderBrandId.takeIf { it >= 0 },
+            )
+            if (AutoPairStore.hasOpenWindow(context, senderKey)) {
+                IncomingTransferUiCoordinator.decide(taskId, IncomingRequestDecision.ACCEPTED)
             }
+        }
+        val decision = IncomingTransferUiCoordinator.awaitDecision(taskId)
+        if (decision == IncomingRequestDecision.ACCEPTED) {
+            AutoPairStore.extendWindow(context, senderKey)
+            respondPrepare(call, LanPrepareResponse(taskId, true))
+        } else {
+            sessions.remove(taskId)
+            respondPrepare(call, LanPrepareResponse(-1, false, "rejected"))
         }
     }
 

@@ -192,4 +192,11 @@
     <string name="compat_battery_summary">将手势互传加入电池优化白名单，防止后台接收被系统杀掉</string>
     <string name="compat_popup_title">后台弹出界面</string>
     <string name="compat_popup_summary">仅 MIUI/澎湃OS：允许手势互传在其他应用上层显示手势界面</string>
+    <string name="auto_pair_title">自动配对（测试版）</string>
+    <string name="auto_pair_summary">开启后，附近安装了手势互传的设备会自动配对。对已配对设备：同意一次它的传输请求后，有效期内的后续请求自动接受；手势界面里握拳也可同意</string>
+    <string name="auto_pair_window_title">同意有效期：%1$d 分钟</string>
+    <string name="auto_pair_window_summary">同意某台已配对设备的请求后，这段时间内它再发来的请求将自动接受</string>
+    <string name="auto_pair_paired_count">已配对设备：%1$d 台</string>
+    <string name="auto_pair_clear">清除全部配对记录</string>
+    <string name="auto_pair_cleared">配对记录已清除</string>
 </resources>

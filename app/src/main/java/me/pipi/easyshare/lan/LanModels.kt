@@ -29,6 +29,8 @@ data class LanAnnouncement(
 data class LanPrepareRequest(
     val senderName: String,
     val senderBrandId: Int,
+    /** Stable sender id (LanDiscovery.localId) used for auto-pairing. */
+    val senderId: String = "",
     val textContent: String? = null,
     val files: List<LanFileMeta> = emptyList(),
 )

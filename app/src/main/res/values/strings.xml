@@ -197,4 +197,11 @@
     <string name="compat_battery_summary">Exempt GestureShare so the system does not stop background receiving</string>
     <string name="compat_popup_title">Background pop-up interface</string>
     <string name="compat_popup_summary">MIUI/HyperOS only: allow GestureShare to show its gesture screen over other apps</string>
+    <string name="auto_pair_title">Auto-pairing (beta)</string>
+    <string name="auto_pair_summary">GestureShare devices found nearby are paired automatically; one accepted request from a paired device opens an accept-window during which its further requests are accepted without prompting. A fist on the gesture screen also accepts.</string>
+    <string name="auto_pair_window_title">Accept window: %1$d min</string>
+    <string name="auto_pair_window_summary">After you accept a request from a paired device, its further requests are auto-accepted for this long</string>
+    <string name="auto_pair_paired_count">Paired devices: %1$d</string>
+    <string name="auto_pair_clear">Clear all pairing records</string>
+    <string name="auto_pair_cleared">Pairing records cleared</string>
 </resources>
