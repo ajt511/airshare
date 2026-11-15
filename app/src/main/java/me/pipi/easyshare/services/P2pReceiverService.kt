@@ -941,11 +941,14 @@ class P2pReceiverService : BaseP2pService() {
                         ))
                         // Auto-pairing (beta): paired devices with an open
                         // accept-window are accepted without prompting.
-                        if (AppSettings(this).autoPairEnabled) {
+                        if (AppSettings(applicationContext).autoPairEnabled) {
                             me.pipi.easyshare.pairing.AutoPairStore.trust(
-                                this, senderKey, senderName, resolvedSenderBrandId,
+                                applicationContext, senderKey, senderName, resolvedSenderBrandId,
                             )
-                            if (me.pipi.easyshare.pairing.AutoPairStore.hasOpenWindow(this, senderKey)) {
+                            if (me.pipi.easyshare.pairing.AutoPairStore.hasOpenWindow(
+                                    applicationContext, senderKey,
+                                )
+                            ) {
                                 IncomingTransferUiCoordinator.decide(
                                     localTaskId, IncomingRequestDecision.ACCEPTED,
                                 )
@@ -980,7 +983,9 @@ class P2pReceiverService : BaseP2pService() {
                             IncomingRequestDecision.ACCEPTED -> {
                                 // One acceptance opens the accept-window for
                                 // this device (auto-pairing beta).
-                                me.pipi.easyshare.pairing.AutoPairStore.extendWindow(this, senderKey)
+                                me.pipi.easyshare.pairing.AutoPairStore.extendWindow(
+                                    applicationContext, senderKey,
+                                )
                             }
                             IncomingRequestDecision.REJECTED -> {
                                 showTransferResult(localTaskId, createFailedNotification(
