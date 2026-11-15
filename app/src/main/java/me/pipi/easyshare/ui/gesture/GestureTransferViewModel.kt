@@ -92,6 +92,8 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
     private var phaseResetJob: Job? = null
     private var allianceBusy = false
     private var lanBusy = false
+    private var sendCancelled = false
+    private var scanningStarted = false
 
     private val gestureListener = object : GestureStateMachine.Listener {
         override fun onPalmHeld() {
@@ -175,6 +177,10 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun startScanning() {
+        // onCreate runs again on rotation while this ViewModel survives; a
+        // second collector would run mergeTargets twice for every emission.
+        if (scanningStarted) return
+        scanningStarted = true
         scanner.start { allianceDevices ->
             mergeTargets(allianceDevices, lanDiscovery.peers.value)
         }
@@ -248,16 +254,21 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
         val target = snapshot.selectedTarget ?: return
         if (sendJob?.isActive == true) return
         if (!snapshot.hasContent) return
+        sendCancelled = false
         updatePhase(GesturePhase.Sending(target.name, 0, target.isLan))
         sendJob = viewModelScope.launch(Dispatchers.Main) {
             val ok = if (target.isLan) sendLan(target) else sendAlliance(target)
-            updatePhase(
-                GesturePhase.Done(
-                    success = ok,
-                    message = if (ok) null else getApplication<Application>().getString(R.string.send_fail),
+            // A user cancel already moved the UI to Idle; do not overwrite it
+            // with a "send failed" result the cancellation itself caused.
+            if (!sendCancelled) {
+                updatePhase(
+                    GesturePhase.Done(
+                        success = ok,
+                        message = if (ok) null else getApplication<Application>().getString(R.string.send_fail),
+                    )
                 )
-            )
-            schedulePhaseReset()
+                schedulePhaseReset()
+            }
         }
     }
 
@@ -318,6 +329,7 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
                 updatePhase(GesturePhase.Sending(target.name, progress.percent, true))
             }
         } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
             Log.e(TAG, "LAN send failed", error)
             false
         }
@@ -358,6 +370,7 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun cancelSend() {
+        sendCancelled = true
         if (lanBusy) {
             sendJob?.cancel()
             lanBusy = false

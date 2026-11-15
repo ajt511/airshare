@@ -113,4 +113,25 @@ class PhotoContentGrabberTest {
         assertFalse(PhotoContentGrabber.isTencentPackage("com.miui.gallery"))
         assertFalse(PhotoContentGrabber.isTencentPackage(null))
     }
+
+    // ---------------------------------------------------------- cache extension
+
+    @Test
+    fun `imageExtension sniffs the container from magic bytes`() {
+        assertEquals("jpg", PhotoContentGrabber.imageExtension(jpegBytes()))
+        assertEquals("png", PhotoContentGrabber.imageExtension(pngBytes()))
+        assertEquals("gif", PhotoContentGrabber.imageExtension(byteArrayOf(0x47, 0x49, 0x46, 0x38, 0x39, 0x61)))
+        assertEquals("webp", PhotoContentGrabber.imageExtension(riffBytes()))
+        assertEquals("bmp", PhotoContentGrabber.imageExtension(byteArrayOf(0x42, 0x4D, 0, 0)))
+    }
+
+    @Test
+    fun `imageExtension falls back to jpg for unknown or short payloads`() {
+        assertEquals("jpg", PhotoContentGrabber.imageExtension(byteArrayOf(0x10, 0x20, 0x30, 0x40)))
+        assertEquals("jpg", PhotoContentGrabber.imageExtension(ByteArray(0)))
+    }
+
+    private fun jpegBytes() = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte())
+    private fun pngBytes() = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A)
+    private fun riffBytes() = byteArrayOf(0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50)
 }

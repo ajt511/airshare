@@ -931,7 +931,15 @@ class P2pReceiverService : BaseP2pService() {
                                 mimeType = sendRequestPayload.optString("mimeType").takeIf { it.isNotBlank() },
                                 receiveDirectoryUri = receiveDirectoryUri(customDir).toString(),
                             )
-                        val senderKey = "ble:${peerAddress ?: senderName}"
+                        // Discovery pairing stores "ble:<advert senderId>"; use
+                        // the same identity here (senderId rides the request)
+                        // so a paired device is recognised on receipt too.
+                        val advertisedSenderId = sendRequestPayload
+                            .optString("senderId")
+                            .trim()
+                            .lowercase()
+                            .takeIf { it.matches(Regex("[0-9a-f]{4}")) }
+                        val senderKey = "ble:${advertisedSenderId ?: peerAddress ?: senderName}"
                         check(IncomingTransferUiCoordinator.beginRequest(
                             requestState,
                             SystemClock.elapsedRealtime() + INCOMING_REQUEST_TIMEOUT_MS,
@@ -944,17 +952,20 @@ class P2pReceiverService : BaseP2pService() {
                         // the gesture confirmation disabled, any already
                         // paired device is accepted outright as well.
                         if (AppSettings(applicationContext).autoPairEnabled) {
+                            // Read trust BEFORE writing it: trust() would make
+                            // every first-contact stranger look paired.
+                            val alreadyTrusted = me.pipi.easyshare.pairing.AutoPairStore.isTrusted(
+                                applicationContext, senderKey,
+                            )
+                            val hasOpenWindow = me.pipi.easyshare.pairing.AutoPairStore.hasOpenWindow(
+                                applicationContext, senderKey,
+                            )
                             me.pipi.easyshare.pairing.AutoPairStore.trust(
                                 applicationContext, senderKey, senderName, resolvedSenderBrandId,
                             )
                             val settings = AppSettings(applicationContext)
-                            if (me.pipi.easyshare.pairing.AutoPairStore.hasOpenWindow(
-                                    applicationContext, senderKey,
-                                ) ||
-                                (!settings.gestureReceiveConfirmEnabled &&
-                                    me.pipi.easyshare.pairing.AutoPairStore.isTrusted(
-                                        applicationContext, senderKey,
-                                    ))
+                            if (hasOpenWindow ||
+                                (!settings.gestureReceiveConfirmEnabled && alreadyTrusted)
                             ) {
                                 IncomingTransferUiCoordinator.decide(
                                     localTaskId, IncomingRequestDecision.ACCEPTED,

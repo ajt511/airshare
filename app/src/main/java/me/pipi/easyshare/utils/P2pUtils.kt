@@ -5,8 +5,14 @@ import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pManager
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import me.pipi.easyshare.R
 import me.pipi.easyshare.exceptions.ExceptionWithMessage
+
+/** The framework occasionally drops an action callback; never wait forever. */
+private const val P2P_ACTION_TIMEOUT_MS = 10_000L
+private const val P2P_QUERY_TIMEOUT_MS = 5_000L
 
 @SuppressLint("MissingPermission")
 suspend fun WifiP2pManager.requestGroupInfo(channel: WifiP2pManager.Channel): WifiP2pGroup? {
@@ -14,7 +20,7 @@ suspend fun WifiP2pManager.requestGroupInfo(channel: WifiP2pManager.Channel): Wi
     requestGroupInfo(channel) {
         groupInfoFuture.complete(it)
     }
-    return groupInfoFuture.await()
+    return withTimeoutOrNull(P2P_QUERY_TIMEOUT_MS) { groupInfoFuture.await() }
 }
 
 class P2pFutureActionListener : WifiP2pManager.ActionListener {
@@ -43,7 +49,7 @@ suspend fun WifiP2pManager.createGroupSuspend(
     val l = P2pFutureActionListener()
     createGroup(channel, config, l)
     try {
-        l.deferred.await()
+        withTimeout(P2P_ACTION_TIMEOUT_MS) { l.deferred.await() }
     } catch (e: Throwable) {
         throw ExceptionWithMessage("Failed to create P2P group", e, R.string.error_p2p_failed)
     }
@@ -53,7 +59,7 @@ suspend fun WifiP2pManager.removeGroupSuspend(channel: WifiP2pManager.Channel) {
     val l = P2pFutureActionListener()
     removeGroup(channel, l)
     try {
-        l.deferred.await()
+        withTimeout(P2P_ACTION_TIMEOUT_MS) { l.deferred.await() }
     } catch (e: Throwable) {
         throw ExceptionWithMessage("Failed to remove P2P group", e, R.string.error_p2p_failed)
     }
@@ -64,7 +70,7 @@ suspend fun WifiP2pManager.connectSuspend(channel: WifiP2pManager.Channel, confi
     val l = P2pFutureActionListener()
     connect(channel, config, l)
     try {
-        l.deferred.await()
+        withTimeout(P2P_ACTION_TIMEOUT_MS) { l.deferred.await() }
     } catch (e: Throwable) {
         throw ExceptionWithMessage("Failed to connect P2P", e, R.string.error_p2p_failed)
     }

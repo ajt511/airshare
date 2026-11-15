@@ -10,6 +10,11 @@ import org.junit.Test
 
 class BleUtilsTest {
     @Test
+    fun senderIdIsFourLowercaseHexDigits() {
+        assertTrue(BleUtils.getSenderId().matches(Regex("[0-9a-f]{4}")))
+    }
+
+    @Test
     fun senderIdUsesUnsignedAdvertisementBytes() {
         val data = ByteArray(27).apply {
             this[8] = 0x80.toByte()

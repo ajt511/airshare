@@ -44,7 +44,11 @@ object AutoPairStore {
     }
 
     /** Writes/refreshes a device entry (discovery or incoming request).
-     *  Returns false when auto-pairing is off (nothing written). */
+     *  Returns false when auto-pairing is off (nothing written).
+     *  Synchronized: Ktor/Netty threads, the BLE scan main thread and the UI
+     *  all mutate the same JSON blob; an unsynchronized read-modify-write
+     *  silently drops the other writer's entry. */
+    @Synchronized
     fun trust(context: Context, key: String, name: String, brandId: Int?): Boolean {
         if (key.isBlank() || !AppSettings(context).autoPairEnabled) return false
         val map = readAll(context)
@@ -60,6 +64,7 @@ object AutoPairStore {
     }
 
     /** True when the device has a currently open accept-window. */
+    @Synchronized
     fun hasOpenWindow(context: Context, key: String): Boolean {
         if (key.isBlank() || !AppSettings(context).autoPairEnabled) return false
         val entry = readAll(context)[key] ?: return false
@@ -67,12 +72,14 @@ object AutoPairStore {
     }
 
     /** True when the device has any entry in the trust table (paired at all). */
+    @Synchronized
     fun isTrusted(context: Context, key: String): Boolean {
         if (key.isBlank()) return false
         return readAll(context).containsKey(key)
     }
 
     /** Opens/extends the accept-window for one device. Call on every acceptance. */
+    @Synchronized
     fun extendWindow(context: Context, key: String) {
         if (key.isBlank()) return
         val map = readAll(context)
@@ -82,8 +89,10 @@ object AutoPairStore {
         writeAll(context, map)
     }
 
+    @Synchronized
     fun count(context: Context): Int = readAll(context).size
 
+    @Synchronized
     fun clearAll(context: Context) {
         prefs(context).edit { remove("devices") }
     }

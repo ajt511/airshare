@@ -105,7 +105,12 @@ class AllianceScanner(private val context: Context) {
                         true
                     }
                 }
-                if (changed) deliver(devices.toList())
+                if (changed) {
+                    // Snapshot under the same lock: stop() clears the list from
+                    // the main thread while binder callbacks keep arriving.
+                    val snapshot = synchronized(lock) { devices.toList() }
+                    deliver(snapshot)
+                }
             }
         }
         callback = scanCallback

@@ -82,11 +82,16 @@ class GestureCaptureController(
 
     private val gestureListener = object : GestureStateMachine.Listener {
         override fun onPalmHeld() {
+            if (finished) return
             phase(CapturePhase.PalmReady)
             haptic(Haptic.TICK)
         }
 
         override fun onGrabbed() {
+            // A finished session ignores new poses until resetSession(): the
+            // release palm otherwise re-arms the machine and can start a
+            // second transfer inside the 2.5s result window.
+            if (finished) return
             // Auto-pairing (beta): a fist also agrees to a pending request.
             if (settings.autoPairEnabled) acceptPendingIncoming()
             haptic(Haptic.GRAB)
@@ -115,6 +120,7 @@ class GestureCaptureController(
         }
 
         override fun onReleased() {
+            if (finished) return
             haptic(Haptic.RELEASE)
             if (content.isNotEmpty()) {
                 sendToSelected()
@@ -129,6 +135,7 @@ class GestureCaptureController(
         }
 
         override fun onGrabLost() {
+            if (finished) return
             if (content.isEmpty() && sendJob?.isActive != true) phase(CapturePhase.Waiting)
         }
     }
@@ -158,7 +165,7 @@ class GestureCaptureController(
         val index = targets.indexOfFirst { it.id == selectedId }.takeIf { it >= 0 } ?: 0
         val next = (index + steps).mod(targets.size)
         selectedId = targets[next].id
-        if (content.isNotEmpty()) phase(readyPhase())
+        if (content.isNotEmpty() && sendJob?.isActive != true) phase(readyPhase())
     }
 
     /** Devices already trusted this session (avoids rewriting prefs each scan). */
@@ -206,7 +213,9 @@ class GestureCaptureController(
         if (selectedId == null || merged.none { it.id == selectedId }) {
             selectedId = merged.firstOrNull { !it.isLan }?.id ?: merged.firstOrNull()?.id
         }
-        if (content.isNotEmpty()) phase(readyPhase())
+        // Never overwrite a "Sending" badge with the ready state: the phase
+        // callback also flips the service's pending-stop handling.
+        if (content.isNotEmpty() && sendJob?.isActive != true) phase(readyPhase())
     }
 
     // --------------------------------------------------------------- events
@@ -314,6 +323,7 @@ class GestureCaptureController(
                 phase(CapturePhase.Sending(target.name, progress.percent, true))
             }
         } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
             Log.e(TAG, "LAN send failed", error)
             false
         }

@@ -198,6 +198,7 @@ class IncomingTransferActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        unbindGestureCamera()
         analysisExecutor.shutdown()
         super.onDestroy()
     }
@@ -223,6 +224,11 @@ class IncomingTransferActivity : ComponentActivity() {
             val future = ProcessCameraProvider.getInstance(this)
             future.addListener({
                 try {
+                    if (isFinishing || isDestroyed ||
+                        !lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)
+                    ) {
+                        return@addListener
+                    }
                     val provider = future.get()
                     cameraProvider = provider
                     landmarker?.close()
@@ -280,13 +286,21 @@ class IncomingTransferActivity : ComponentActivity() {
 
     private fun unbindGestureCamera() {
         gestureCameraActive = false
-        landmarker?.close()
-        landmarker = null
         fistStableFrames = 0
         // Fully release the camera (not just the recognizer) so the front
-        // camera indicator goes off while the transfer runs.
+        // camera indicator goes off while the transfer runs, then close the
+        // native graph on the analysis executor after any in-flight frame.
+        val helper = landmarker
+        landmarker = null
         runCatching { cameraProvider?.unbindAll() }
         cameraProvider = null
+        if (helper != null) {
+            try {
+                analysisExecutor.execute { helper.close() }
+            } catch (_: java.util.concurrent.RejectedExecutionException) {
+                helper.close()
+            }
+        }
         waveDetector.reset()
     }
 
@@ -320,8 +334,8 @@ class IncomingTransferActivity : ComponentActivity() {
             )
         ) {
             Log.i(TAG, "Incoming transfer rejected via wave gesture")
+            hideAndFinish(transferTaskId)
         }
-        hideAndFinish(transferTaskId)
     }
 
     @Suppress("DEPRECATION")
@@ -396,23 +410,31 @@ class IncomingTransferActivity : ComponentActivity() {
             return
         }
         Log.i(TAG, "Incoming transfer canceled")
-        P2pReceiverService.cancelTask(this, expectedTaskId)
+        if (state.lanTask) {
+            // LAN tasks live in LanTransferServer, not P2pReceiverService.
+            MyApplication.getInstance().cancelLanSession(expectedTaskId)
+            IncomingTransferUiCoordinator.cancelReceiving(
+                expectedTaskId, getString(R.string.cancelled_by_user_local),
+            )
+        } else {
+            P2pReceiverService.cancelTask(this, expectedTaskId)
+        }
     }
 
     private fun openReceivedFiles(state: IncomingTransferUiState, expectedTaskId: Int) {
         val files = state.receivedFiles
         lifecycleScope.launch {
             try {
-                val openIntent = if (files.size == 1) {
-                    val file = files.first()
-                    Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(file.uri, file.mimeType)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                } else {
-                    P2pReceiverService.receivedDirectoryIntent(
-                        this@IncomingTransferActivity, requireNotNull(state.receiveDirectoryUri).toUri(),
+                val directoryUri = state.receiveDirectoryUri
+                val openIntent = when {
+                    files.size == 1 -> viewFileIntent(files.first())
+                    directoryUri != null -> P2pReceiverService.receivedDirectoryIntent(
+                        this@IncomingTransferActivity, requireNotNull(directoryUri).toUri(),
                     )
+                    // LAN results save straight into Downloads and have no
+                    // tree URI; opening the first file still beats an error.
+                    files.isNotEmpty() -> viewFileIntent(files.first())
+                    else -> throw IllegalStateException("Nothing to open")
                 }
                 if (transferTaskId != expectedTaskId) return@launch
                 startActivity(openIntent)
@@ -426,6 +448,12 @@ class IncomingTransferActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun viewFileIntent(file: ReceivedFile): Intent =
+        Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(file.uri, file.mimeType)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
 
     companion object {
         private const val EXTRA_TASK_ID = "taskId"

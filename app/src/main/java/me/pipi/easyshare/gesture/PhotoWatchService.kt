@@ -68,6 +68,13 @@ class PhotoWatchService : AccessibilityService() {
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastTriggeredMillis < COOLDOWN_MILLIS) return
         if (!Settings.canDrawOverlays(this)) return
+        // A camera-typed foreground service cannot start without CAMERA; do
+        // not spawn (and crash) a session that is guaranteed to fail.
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.CAMERA,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return
         if (GestureCaptureService.sessionActive) return
         lastTriggeredMillis = now
 
@@ -78,7 +85,13 @@ class PhotoWatchService : AccessibilityService() {
         val scan = scanPhotoPage()
         CaptureSessionContext.nodeHints = scan.first
         CaptureSessionContext.photoBounds = scan.second
-        GestureCaptureService.start(this, settings.photoGestureCameraMode)
+        try {
+            GestureCaptureService.start(this, settings.photoGestureCameraMode)
+        } catch (error: Exception) {
+            // startForegroundService can be refused from the background.
+            Log.w(TAG, "Failed to start gesture capture session", error)
+            lastTriggeredMillis = 0L
+        }
     }
 
     /**

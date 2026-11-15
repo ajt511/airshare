@@ -379,7 +379,7 @@ class GattServerService : Service() {
                 if (ecKey != null) {
                     val cipher = BleSecurity.deriveSessionKey(ecKey, p2pInfo.cryptoVersion)
                     p2pInfo = P2pInfo(
-                        id = BleUtils.getSenderId(),
+                        id = BleUtils.getSenderId(applicationContext),
                         ssid = cipher.decrypt("ssid", p2pInfo.ssid),
                         psk = cipher.decrypt("psk", p2pInfo.psk),
                         mac = cipher.decrypt("mac", p2pInfo.mac),

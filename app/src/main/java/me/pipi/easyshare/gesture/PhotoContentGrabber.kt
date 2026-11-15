@@ -207,10 +207,27 @@ object PhotoContentGrabber {
     private fun writeToCache(context: Context, bytes: ByteArray, atMillis: Long): File? {
         return try {
             val dir = File(context.cacheDir, "photo_grab").apply { mkdirs() }
-            File(dir, "grab_$atMillis.jpg").apply { writeBytes(bytes) }
+            // Tencent caches store the original bytes (maybe XOR-masked);
+            // naming every grab ".jpg" would mislabel PNG/GIF/WebP content.
+            val extension = imageExtension(bytes)
+            File(dir, "grab_$atMillis.$extension").apply { writeBytes(bytes) }
         } catch (error: Exception) {
             android.util.Log.w("PhotoContentGrabber", "cache write failed", error)
             null
+        }
+    }
+
+    /** Sniffs the container format from the leading magic bytes. */
+    fun imageExtension(bytes: ByteArray): String {
+        fun startsWith(vararg magic: Int): Boolean =
+            bytes.size >= magic.size && magic.indices.all { bytes[it] == magic[it].toByte() }
+        return when {
+            startsWith(0xFF, 0xD8, 0xFF) -> "jpg"
+            startsWith(0x89, 0x50, 0x4E, 0x47) -> "png"
+            startsWith(0x47, 0x49, 0x46) -> "gif"
+            startsWith(0x52, 0x49, 0x46, 0x46) -> "webp"
+            startsWith(0x42, 0x4D) -> "bmp"
+            else -> "jpg"
         }
     }
 }

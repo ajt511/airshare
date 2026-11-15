@@ -16,6 +16,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.media.ImageReader
+import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.Looper
@@ -38,6 +39,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import me.pipi.easyshare.AppSettings
 import me.pipi.easyshare.R
@@ -60,6 +62,7 @@ class GestureCaptureService : LifecycleService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val analysisExecutor = Executors.newSingleThreadExecutor()
     private var landmarker: HandLandmarkerHelper? = null
+    private var cameraProvider: ProcessCameraProvider? = null
     private var controller: GestureCaptureController? = null
     private var badgeView: android.widget.LinearLayout? = null
     private var badgeLabel: android.widget.TextView? = null
@@ -85,7 +88,16 @@ class GestureCaptureService : LifecycleService() {
         // Overlay FIRST: it gives this uid a visible window before the
         // camera-typed startForeground eligibility check runs.
         showBadge(getString(R.string.photo_gesture_badge_camera_start))
-        startCameraForeground()
+        if (!startCameraForeground()) {
+            // Camera FGS is mandatory for this session; without it the service
+            // must stop instead of crashing the process (permission revoked,
+            // background start blocked, missing declared type, ...).
+            showBadge(getString(R.string.photo_gesture_fail_camera))
+            // Leave the badge readable for a moment instead of killing the
+            // overlay in the same frame it appeared.
+            mainHandler.postDelayed({ stopSelf() }, 2_500L)
+            return
+        }
 
         controller = GestureCaptureController(
             this,
@@ -109,41 +121,70 @@ class GestureCaptureService : LifecycleService() {
         // The mode extra only arrives here (after onCreate), so the idle
         // guard is armed per-start here rather than in onCreate.
         armTimeout(idleTimeoutMillis())
-        return super.onStartCommand(intent, flags, startId)
+        super.onStartCommand(intent, flags, startId)
+        // Never let the system resurrect a stale gesture session.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         destroyed = true
         sessionActive = false
+        // Session statics outlive this instance; a timeout-killed send must not
+        // leave the next session thinking it is still sending.
+        sending = false
+        pendingStopOnIdle = false
+        runningMode = AppSettings.CAMERA_MODE_ON_DEMAND
         mainHandler.removeCallbacksAndMessages(null)
         hideBadge()
         (getSystemService(Context.SENSOR_SERVICE) as? SensorManager)
             ?.unregisterListener(sensorListener)
-        analysisExecutor.shutdown()
-        landmarker?.close()
-        landmarker = null
         controller?.shutdown()
         controller = null
+        // Detach the camera before releasing the recognizer so no analysis
+        // frame can touch a closed native graph. close() runs on the analysis
+        // executor (serialized after any in-flight frame), then the executor
+        // is shut down.
+        runCatching { cameraProvider?.unbindAll() }
+        cameraProvider = null
+        val helper = landmarker
+        landmarker = null
+        if (helper != null) {
+            try {
+                analysisExecutor.execute { helper.close() }
+            } catch (_: java.util.concurrent.RejectedExecutionException) {
+                helper.close()
+            }
+        }
+        analysisExecutor.shutdown()
         super.onDestroy()
     }
 
     // ----------------------------------------------------------------- FGS
 
-    private fun startCameraForeground() {
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.photo_gesture_channel_name),
-                NotificationManager.IMPORTANCE_MIN,
-            ).apply { setSound(null, null) },
-        )
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            buildForegroundNotification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA,
-        )
+    private fun startCameraForeground(): Boolean {
+        return try {
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    getString(R.string.photo_gesture_channel_name),
+                    NotificationManager.IMPORTANCE_MIN,
+                ).apply { setSound(null, null) },
+            )
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                buildForegroundNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA,
+            )
+            true
+        } catch (error: Exception) {
+            // SecurityException (camera permission), ForegroundServiceStartNotAllowed,
+            // IllegalArgumentException (undeclared type) — all must end the
+            // session, never the process.
+            Log.e(TAG, "Camera foreground service start failed", error)
+            false
+        }
     }
 
     private fun buildForegroundNotification(): Notification =
@@ -161,6 +202,7 @@ class GestureCaptureService : LifecycleService() {
         future.addListener({
             try {
                 val provider = future.get()
+                cameraProvider = provider
                 landmarker = HandLandmarkerHelper(
                     context = this,
                     onFrame = { frame ->
@@ -255,6 +297,14 @@ class GestureCaptureService : LifecycleService() {
     // ----------------------------------------------------------- phase flow
 
     private fun onPhase(phase: CapturePhase) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            // LAN upload progress is reported from an IO thread, and the badge
+            // is a View: every phase update must land on the main thread.
+            mainHandler.post {
+                if (!destroyed) onPhase(phase)
+            }
+            return
+        }
         if (destroyed) return
         preGrabStage = phase is CapturePhase.Waiting ||
             phase is CapturePhase.PalmReady ||
@@ -331,6 +381,9 @@ class GestureCaptureService : LifecycleService() {
      * mandatory on Android — one system dialog per grab.
      */
     private fun startScreenCaptureFallback() {
+        // Approving the system capture dialog can take longer than the
+        // grabbing window; give the consent round-trip its own deadline.
+        armTimeout(SCREEN_CONSENT_TIMEOUT_MILLIS + 10_000L)
         lifecycleScope.launch {
             showBadge(getString(R.string.photo_gesture_badge_screen_consent))
             val signal = CaptureSessionContext.beginProjectionConsent()
@@ -384,6 +437,9 @@ class GestureCaptureService : LifecycleService() {
         var reader: ImageReader? = null
         var display: android.hardware.display.VirtualDisplay? = null
         try {
+            // Android 14+ refuses createVirtualDisplay until a callback is
+            // registered (IllegalStateException "Must register a callback").
+            projection.registerCallback(object : MediaProjection.Callback() {}, mainHandler)
             val frame = CompletableDeferred<android.media.Image>()
             reader = ImageReader.newInstance(width, height, android.graphics.PixelFormat.RGBA_8888, 2)
             reader.setOnImageAvailableListener({ r ->
@@ -396,22 +452,26 @@ class GestureCaptureService : LifecycleService() {
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, reader.surface, null, mainHandler,
             )
             val image = withTimeoutOrNull(FRAME_TIMEOUT_MILLIS) { frame.await() } ?: return null
-            val bitmap = image.use { img ->
-                val plane = img.planes[0]
-                val buffer = plane.buffer
-                buffer.rewind()
-                // Row stride may exceed width*4 (device padding): copy into a
-                // stride-wide bitmap first, then crop the real columns.
-                val rowStride = plane.rowStride
-                val pixelStride = plane.pixelStride
-                val strideWidth = rowStride / pixelStride
-                val raw = Bitmap.createBitmap(strideWidth, img.height, Bitmap.Config.ARGB_8888)
-                raw.copyPixelsFromBuffer(buffer)
-                if (strideWidth == img.width) raw
-                else Bitmap.createBitmap(raw, 0, 0, img.width, img.height)
+            // Copying a full-resolution RGBA buffer and JPEG-encoding it is
+            // far too heavy for the main thread.
+            val cropped = withContext(Dispatchers.Default) {
+                val bitmap = image.use { img ->
+                    val plane = img.planes[0]
+                    val buffer = plane.buffer
+                    buffer.rewind()
+                    // Row stride may exceed width*4 (device padding): copy into a
+                    // stride-wide bitmap first, then crop the real columns.
+                    val rowStride = plane.rowStride
+                    val pixelStride = plane.pixelStride
+                    val strideWidth = rowStride / pixelStride
+                    val raw = Bitmap.createBitmap(strideWidth, img.height, Bitmap.Config.ARGB_8888)
+                    raw.copyPixelsFromBuffer(buffer)
+                    if (strideWidth == img.width) raw
+                    else Bitmap.createBitmap(raw, 0, 0, img.width, img.height)
+                }
+                cropBitmap(bitmap, CaptureSessionContext.photoBounds)
             }
-            val cropped = cropBitmap(bitmap, CaptureSessionContext.photoBounds)
-            return saveCaptureToCache(cropped)
+            return withContext(Dispatchers.IO) { saveCaptureToCache(cropped) }
         } finally {
             try { display?.release() } catch (_: Exception) {}
             try { reader?.close() } catch (_: Exception) {}

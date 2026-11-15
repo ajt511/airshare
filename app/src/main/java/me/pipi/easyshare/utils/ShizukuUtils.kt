@@ -179,6 +179,9 @@ object ShizukuUtils {
         maxCount: Int = 8,
     ): List<Pair<Long, String>>? {
         return withMacService { service ->
+            // Keep null: it means the service call itself failed (stale/broken
+            // user service), and callers must fall back to a screenshot rather
+            // than reporting "no photo".
             service.listRecentImageFiles(rootDir, sinceMillis, maxDepth, maxCount)
                 ?.mapNotNull { entry ->
                     val split = entry.indexOf('|')
@@ -186,7 +189,6 @@ object ShizukuUtils {
                     val mtime = entry.substring(0, split).toLongOrNull() ?: return@mapNotNull null
                     mtime to entry.substring(split + 1)
                 }
-                .orEmpty()
         }
     }
 

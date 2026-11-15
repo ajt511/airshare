@@ -60,7 +60,7 @@ class LanSender(private val context: Context) {
         val prepare = LanPrepareRequest(
             senderName = senderName,
             senderBrandId = senderBrandId,
-            senderId = LanDiscovery.localId(),
+            senderId = LanDiscovery.localId(context),
             textContent = textContent,
             files = metas.map { it.second },
         )
@@ -92,7 +92,7 @@ class LanSender(private val context: Context) {
                 var sent = 0L
                 metas.forEachIndexed { index, (uri, meta) ->
                     val fileName = meta.name
-                    client.preparePost("http://$host:$port/airshare/file/$taskId/$index") {
+                    val fileResponse = client.preparePost("http://$host:$port/airshare/file/$taskId/$index") {
                         setBody(object : io.ktor.http.content.OutgoingContent.WriteChannelContent() {
                             override val contentType: ContentType? =
                                 ContentType.parse(meta.mimeType.ifBlank { "application/octet-stream" })
@@ -118,6 +118,14 @@ class LanSender(private val context: Context) {
                             }
                         })
                     }.execute()
+                    // A rejected/aborted file POST must fail the whole task;
+                    // otherwise the sender reports success while the receiver
+                    // saved nothing.
+                    val status = fileResponse.status
+                    fileResponse.bodyAsText()
+                    if (!status.isSuccess()) {
+                        throw java.io.IOException("File $index rejected: $status")
+                    }
                 }
             }
         } catch (error: Exception) {

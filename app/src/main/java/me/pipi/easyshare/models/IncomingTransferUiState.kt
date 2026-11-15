@@ -40,4 +40,6 @@ data class IncomingTransferUiState(
     val cancelRequested: Boolean = false,
     val monitorInBackground: Boolean = false,
     val receiveDirectoryUri: String? = null,
+    /** LAN-channel task: owned by LanTransferServer, not P2pReceiverService. */
+    val lanTask: Boolean = false,
 ) : Parcelable

@@ -1,5 +1,6 @@
 package me.pipi.easyshare.utils
 
+import android.content.Context
 import java.nio.ByteBuffer
 import java.security.SecureRandom
 import java.util.Arrays
@@ -13,6 +14,10 @@ object BleUtils {
     const val MAX_P2P_GATT_FRAME_BYTES = 480
     private const val MAX_ADVERTISEMENT_NAME_BYTES = 16
     private const val P2P_GATT_FRAME_HEADER_BYTES = 12
+    private const val IDENTITY_PREFS = "identity"
+    private const val KEY_SENDER_ID = "senderId"
+    @Volatile
+    private var cachedSenderId: String? = null
     private val P2P_GATT_FRAME_MAGIC = byteArrayOf('E'.code.toByte(), 'S'.code.toByte(), 'P'.code.toByte(), 1)
     val ADV_SERVICE_UUID = UUID.fromString("00003331-0000-1000-8000-008123456789")
     val SERVICE_UUID = UUID.fromString("00009955-0000-1000-8000-00805f9b34fb")
@@ -28,9 +33,26 @@ object BleUtils {
         )
     }
 
-    fun getSenderId(): String {
-        val senderIdRaw = unsignedShort(RANDOM_DATA[0], RANDOM_DATA[1])
-        return String.format("%04x", senderIdRaw)
+    fun getSenderId(context: Context? = null): String {
+        cachedSenderId?.let { return it }
+        synchronized(this) {
+            cachedSenderId?.let { return it }
+            // Persist the advertised id so the trust table key ("ble:<id>")
+            // survives a restart and matches the id the receiver reads from
+            // the send-request payload. Without a Context (tests) keep the
+            // legacy per-process random id.
+            val prefs = context?.getSharedPreferences(IDENTITY_PREFS, Context.MODE_PRIVATE)
+            val stored = prefs?.getString(KEY_SENDER_ID, null)
+                ?.takeIf { it.matches(Regex("[0-9a-f]{4}")) }
+            val id = stored ?: String.format(
+                "%04x", unsignedShort(RANDOM_DATA[0], RANDOM_DATA[1]),
+            )
+            if (prefs != null && stored == null) {
+                prefs.edit().putString(KEY_SENDER_ID, id).apply()
+            }
+            cachedSenderId = id
+            return id
+        }
     }
 
     fun senderIdFromAdvertisement(data: ByteArray): String? {

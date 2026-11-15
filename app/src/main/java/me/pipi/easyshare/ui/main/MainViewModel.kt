@@ -281,7 +281,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setLanEnabled(enabled: Boolean) {
         settings.lanEnabled = enabled
         _state.value = _state.value.copy(lanEnabled = enabled)
-        MyApplication.getInstance().reconcileReceiver()
+        MyApplication.getInstance().setLanEnabled(enabled)
     }
 
     fun refreshBatteryExemption() {

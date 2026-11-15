@@ -550,7 +550,7 @@ class P2pSenderService : BaseP2pService() {
             JSONObject()
                 .put("taskId", taskIdStr)
                 .put("id", taskIdStr)
-                .put("senderId", BleUtils.getSenderId())
+                .put("senderId", BleUtils.getSenderId(applicationContext))
                 .put("senderName", settings.deviceName)
                 .put("senderBrand", DeviceUtils.deviceNameById(brandId))
                 .put("senderBrandId", brandId)
@@ -887,7 +887,7 @@ class P2pSenderService : BaseP2pService() {
                         }
 
                         val newP2pInfo = P2pInfo(
-                            id = BleUtils.getSenderId(),
+                            id = BleUtils.getSenderId(applicationContext),
                             ssid = cipher?.encrypt("ssid", ssid) ?: ssid,
                             psk = cipher?.encrypt("psk", psk) ?: psk,
                             mac = cipher?.encrypt("mac", p2pMac) ?: p2pMac,

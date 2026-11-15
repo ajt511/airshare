@@ -32,6 +32,17 @@ object ShakeToShare : SensorEventListener {
         unregister(activity)
     }
 
+    /** Applies a settings change immediately for the resumed activity. */
+    fun refresh(activity: Activity) {
+        currentActivity = activity
+        if (AppSettings(activity).shakeToShareEnabled) {
+            register(activity)
+        } else {
+            unregister(activity)
+            detector?.reset()
+        }
+    }
+
     private fun register(activity: Activity) {
         val manager = activity.getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return
         val accelerometer = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
@@ -66,6 +77,8 @@ object ShakeToShare : SensorEventListener {
 
     private fun onShake() {
         val activity = currentActivity ?: return
+        // The setting can be switched off while this listener stays registered.
+        if (!AppSettings(activity).shakeToShareEnabled) return
         if (activity is GestureTransferActivity) return
         activity.startActivity(GestureTransferActivity.pickIntent(activity))
     }

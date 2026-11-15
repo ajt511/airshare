@@ -92,7 +92,7 @@ class LanDiscovery(private val context: Context) {
     private fun announcement(): LanAnnouncement {
         val settings = AppSettings(context)
         return LanAnnouncement(
-            id = localId(),
+            id = localId(context),
             name = settings.deviceName,
             brand = DeviceUtils.knownDeviceNameById(DeviceUtils.getLocalBrandId()) ?: "Android",
             brandId = DeviceUtils.getLocalBrandId(),
@@ -155,13 +155,15 @@ class LanDiscovery(private val context: Context) {
             return
         }
         if (announcement.proto != LanAnnouncement.PROTO) return
-        if (announcement.id == localId()) return
+        if (announcement.id == localId(context)) return
         val now = System.currentTimeMillis()
+        // Traffic from other peers keeps the socket busy, so the receive
+        // timeout alone cannot be relied on to expire departed peers.
+        expirePeers(now)
         _peers.value = _peers.value + (announcement.id to LanPeer(announcement, packet.address, now))
     }
 
-    private fun expirePeers() {
-        val now = System.currentTimeMillis()
+    private fun expirePeers(now: Long = System.currentTimeMillis()) {
         val expired = _peers.value.filterValues { now - it.lastSeenMillis > EXPIRE_MILLIS }
         if (expired.isNotEmpty()) {
             _peers.value = _peers.value - expired.keys
@@ -174,11 +176,36 @@ class LanDiscovery(private val context: Context) {
         const val ANNOUNCE_INTERVAL_MILLIS = 1_000L
         const val EXPIRE_MILLIS = 4_000L
 
+        private const val IDENTITY_PREFS = "lan"
+        private const val KEY_DEVICE_ID = "deviceId"
+
+        @Volatile
         private var cachedId: String? = null
+
+        /** Stable id used in announcements and as the trust-table key.
+         *  Persisted so pairing survives a restart; the no-arg overload is a
+         *  per-process fallback for callers without a Context (tests). */
+        fun localId(context: Context): String {
+            cachedId?.let { return it }
+            synchronized(this) {
+                cachedId?.let { return it }
+                val prefs = context.getSharedPreferences(IDENTITY_PREFS, Context.MODE_PRIVATE)
+                val stored = prefs.getString(KEY_DEVICE_ID, null)
+                    ?.takeIf { it.isNotBlank() }
+                val id = stored ?: UUID.randomUUID().toString().also { generated ->
+                    prefs.edit().putString(KEY_DEVICE_ID, generated).apply()
+                }
+                cachedId = id
+                return id
+            }
+        }
+
         fun localId(): String {
-            // Stable per process install is enough; a fresh id only means
-            // peers see this device again after a reinstall.
-            return cachedId ?: UUID.randomUUID().toString().also { cachedId = it }
+            cachedId?.let { return it }
+            synchronized(this) {
+                cachedId?.let { return it }
+                return UUID.randomUUID().toString().also { cachedId = it }
+            }
         }
     }
 }

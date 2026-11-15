@@ -84,6 +84,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.EasyShare"
+        android:usesCleartextTraffic="true"
         >
         <activity
             android:name=".ShareActivity"
@@ -146,7 +147,7 @@
         <service
             android:name=".gesture.GestureCaptureService"
             android:exported="false"
-            android:foregroundServiceType="camera" />
+            android:foregroundServiceType="camera|mediaProjection" />
 
         <service
             android:name=".services.ReceiverTileService"

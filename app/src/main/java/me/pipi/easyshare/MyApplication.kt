@@ -125,6 +125,19 @@ class MyApplication : Application() {
         reconcileReceiver()
     }
 
+    /** LAN channel switch: applies immediately instead of waiting for the
+     *  receiver service to restart (reconcile() returns NONE while running). */
+    fun setLanEnabled(enabled: Boolean) {
+        AppSettings(this).lanEnabled = enabled
+        reconcileLan()
+        reconcileReceiver()
+    }
+
+    /** Stops accepting further files of a LAN task the user cancelled. */
+    fun cancelLanSession(taskId: Int) {
+        lanServer?.cancelSession(taskId)
+    }
+
     fun refreshReceiverIdentity() {
         mainHandler.post {
             receiverPolicy.requestRestart()
@@ -164,7 +177,16 @@ class MyApplication : Application() {
                 }
                 stopLan()
             }
-            ReceiverPolicy.Action.NONE -> Unit
+            ReceiverPolicy.Action.NONE -> reconcileLan()
+        }
+    }
+
+    /** LAN runs only while the receiver is up and the user has it enabled. */
+    private fun reconcileLan() {
+        if (receiverRunning && AppSettings(this).lanEnabled) {
+            startLanIfNeeded()
+        } else {
+            stopLan()
         }
     }
 

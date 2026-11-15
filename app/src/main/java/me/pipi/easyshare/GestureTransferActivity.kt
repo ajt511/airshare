@@ -54,6 +54,7 @@ class GestureTransferActivity : ComponentActivity() {
     private val viewModel: GestureTransferViewModel by viewModels()
 
     private var landmarker: HandLandmarkerHelper? = null
+    private var cameraProvider: ProcessCameraProvider? = null
     private val analysisExecutor = Executors.newSingleThreadExecutor()
 
     private var cameraPermissionGranted = false
@@ -140,12 +141,19 @@ class GestureTransferActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        // onStop normally unbinds, but a bind callback can land after it and
+        // leak the recognizer's native graph for every exit otherwise.
+        unbindCamera()
         analysisExecutor.shutdown()
         super.onDestroy()
     }
 
     private fun ensureCamera() {
-        if (cameraPermissionGranted) {
+        val granted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.CAMERA,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        cameraPermissionGranted = granted
+        if (granted) {
             bindCamera()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -183,7 +191,18 @@ class GestureTransferActivity : ComponentActivity() {
         future.addListener({
             try {
                 val provider = future.get()
-                landmarker?.close()
+                cameraProvider = provider
+                // Release the previous graph on the analysis executor; the
+                // analyzer reads the field, so a null window needs no lock.
+                val previous = landmarker
+                landmarker = null
+                previous?.let { helper ->
+                    try {
+                        analysisExecutor.execute { helper.close() }
+                    } catch (_: java.util.concurrent.RejectedExecutionException) {
+                        helper.close()
+                    }
+                }
                 landmarker = HandLandmarkerHelper(
                     context = this,
                     onFrame = { frame -> runOnUiThread { viewModel.onGestureFrame(frame) } },
@@ -240,10 +259,20 @@ class GestureTransferActivity : ComponentActivity() {
     }
 
     private fun unbindCamera() {
-        // CameraX unbinds automatically when the lifecycle stops; only the
-        // detector needs an explicit release here.
-        landmarker?.close()
+        // CameraX unbinds automatically when the lifecycle stops; the
+        // recognizer's native graph still needs an explicit release, on the
+        // analysis executor so it cannot race an in-flight frame.
+        val helper = landmarker
         landmarker = null
+        runCatching { cameraProvider?.unbindAll() }
+        cameraProvider = null
+        if (helper != null) {
+            try {
+                analysisExecutor.execute { helper.close() }
+            } catch (_: java.util.concurrent.RejectedExecutionException) {
+                helper.close()
+            }
+        }
     }
 
     @Suppress("DEPRECATION")

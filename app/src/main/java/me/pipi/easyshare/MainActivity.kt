@@ -38,6 +38,8 @@ class MainActivity : ComponentActivity() {
     private var enableReceiverAfterPermission = false
     private var recoverReceiverAfterPermission = false
     private var pendingPhotoGesture = false
+    /** Set when we send the user to app settings for a missing permission. */
+    private var enableReceiverAfterSettings = false
 
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -63,6 +65,9 @@ class MainActivity : ComponentActivity() {
             if (shouldEnable) viewModel.setReceiverEnabled(true)
             MyApplication.getInstance().reconcileReceiver()
         } else if (shouldRecover && missingPermissions.any { !shouldShowRequestPermissionRationale(it) }) {
+            // The user must flip these in app settings; remember the pending
+            // enable so returning with grants still turns the receiver on.
+            enableReceiverAfterSettings = shouldEnable || shouldRecover
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
         } else if (shouldEnable) {
             Toast.makeText(
@@ -77,6 +82,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableReceiverAfterPermission = savedInstanceState?.getBoolean(PENDING_RECEIVER_PERMISSION) ?: false
         recoverReceiverAfterPermission = savedInstanceState?.getBoolean(PENDING_RECEIVER_RECOVERY) ?: false
+        pendingPhotoGesture = savedInstanceState?.getBoolean(PENDING_PHOTO_GESTURE) ?: false
         enableEdgeToEdge()
 
         setContent {
@@ -119,7 +125,10 @@ class MainActivity : ComponentActivity() {
                         startActivity(GestureTransferActivity.pickIntent(this))
                     },
                     onPalmAutoAcceptChanged = viewModel::setPalmAutoAccept,
-                    onShakeToShareChanged = viewModel::setShakeToShare,
+                    onShakeToShareChanged = { enabled ->
+                        viewModel.setShakeToShare(enabled)
+                        me.pipi.easyshare.gesture.ShakeToShare.refresh(this)
+                    },
                     onHapticsChanged = viewModel::setHaptics,
                     onLanEnabledChanged = viewModel::setLanEnabled,
                     onOpenVendorAutoStart = { VendorCompat.openAutoStartSettings(this) },
@@ -159,6 +168,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean(PENDING_RECEIVER_PERMISSION, enableReceiverAfterPermission)
         outState.putBoolean(PENDING_RECEIVER_RECOVERY, recoverReceiverAfterPermission)
+        outState.putBoolean(PENDING_PHOTO_GESTURE, pendingPhotoGesture)
         super.onSaveInstanceState(outState)
     }
 
@@ -167,11 +177,21 @@ class MainActivity : ComponentActivity() {
         viewModel.refreshReceiveState()
         viewModel.refreshPhotoGestureState()
         viewModel.refreshAutoPairState()
+        // Returning from app settings: complete the enable the user asked for
+        // once the missing permissions are actually granted.
+        if (enableReceiverAfterSettings &&
+            missingTransferPermissions(includeNotifications = true).isEmpty()
+        ) {
+            enableReceiverAfterSettings = false
+            viewModel.setReceiverEnabled(true)
+            MyApplication.getInstance().reconcileReceiver()
+        }
         // Completing the flow: user returns from accessibility settings with
         // the service enabled — finish the pending enable here.
         if (pendingPhotoGesture && photoGesturePermissionsGranted()) {
             pendingPhotoGesture = false
             viewModel.setPhotoGesture(true)
+            requestMediaPermissionsIfNeeded()
         }
     }
 
@@ -192,6 +212,7 @@ class MainActivity : ComponentActivity() {
     private fun setReceiverEnabled(enabled: Boolean) {
         if (!enabled) {
             enableReceiverAfterPermission = false
+            enableReceiverAfterSettings = false
             viewModel.setReceiverEnabled(false)
             return
         }
@@ -319,5 +340,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val PENDING_RECEIVER_PERMISSION = "pendingReceiverPermission"
         private const val PENDING_RECEIVER_RECOVERY = "pendingReceiverRecovery"
+        private const val PENDING_PHOTO_GESTURE = "pendingPhotoGesture"
     }
 }
