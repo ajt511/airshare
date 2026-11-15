@@ -78,19 +78,21 @@ object PhotoContentGrabber {
         return bytes
     }
 
-    private val IMAGE_EXT = Regex(
-        "(?i)^.{0,160}[\\w\\-.]+\\.(jpg|jpeg|png|gif|bmp|webp)$",
+    private val IMAGE_FILE_RE = Regex(
+        "(?i)([\\w\\-]+\\.(?:jpg|jpeg|png|gif|bmp|webp))",
     )
 
     /**
      * First node hint that carries a concrete image file name (galleries put
-     * "IMG_20261115_142300.jpg" or similar into contentDescription).
+     * "IMG_20261115_142300.jpg" or similar into contentDescription); the
+     * bare file name is extracted even when surrounded by extra wording.
      */
     fun extractFilenameToken(hints: List<String>): String? {
         return hints.asSequence()
             .map { it.trim() }
             .filter { it.isNotEmpty() && it.length <= 200 }
-            .firstOrNull { IMAGE_EXT.matches(it) }
+            .firstOrNull { IMAGE_FILE_RE.containsMatchIn(it) }
+            ?.let { IMAGE_FILE_RE.find(it)?.groupValues?.get(1) }
     }
 
     // ---------------------------------------------------------------------
