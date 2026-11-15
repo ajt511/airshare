@@ -5,7 +5,12 @@ import org.junit.Test
 
 class HandWaveDetectorTest {
     private var waves = 0
-    private val detector = HandWaveDetector(HandWaveDetector.Config(), listener = { waves++ })
+    private val detector = HandWaveDetector(
+        HandWaveDetector.Config(),
+        object : HandWaveDetector.Listener {
+            override fun onWave() { waves++ }
+        },
+    )
 
     private fun frame(x: Float?) = GestureFrame(HandGesture.OTHER, x, 0.5f)
 

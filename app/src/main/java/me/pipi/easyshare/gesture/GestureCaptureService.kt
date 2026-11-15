@@ -22,7 +22,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
-import android.view.Display
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.camera.core.CameraSelector
@@ -96,7 +95,6 @@ class GestureCaptureService : LifecycleService() {
         controller?.startScanning()
         registerSensors()
         bindCamera()
-        armTimeout(idleTimeoutMillis())
     }
 
     private fun idleTimeoutMillis(): Long =
@@ -108,6 +106,9 @@ class GestureCaptureService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.getStringExtra(EXTRA_MODE)?.let { runningMode = it }
+        // The mode extra only arrives here (after onCreate), so the idle
+        // guard is armed per-start here rather than in onCreate.
+        armTimeout(idleTimeoutMillis())
         return super.onStartCommand(intent, flags, startId)
     }
 
@@ -258,6 +259,7 @@ class GestureCaptureService : LifecycleService() {
         preGrabStage = phase is CapturePhase.Waiting ||
             phase is CapturePhase.PalmReady ||
             phase is CapturePhase.Grabbing
+        sending = phase is CapturePhase.Sending
         when (phase) {
             CapturePhase.Waiting ->
                 showBadge(getString(R.string.photo_gesture_badge_waiting))
@@ -302,10 +304,18 @@ class GestureCaptureService : LifecycleService() {
                 }
                 showBadge(text)
                 if (runningMode == AppSettings.CAMERA_MODE_PERSISTENT) {
-                    // Stay armed on the photo page: next grab cycle in place.
-                    mainHandler.postDelayed({
-                        if (!destroyed) controller?.resetSession()
-                    }, EXIT_AFTER_DONE_MILLIS)
+                    if (pendingStopOnIdle) {
+                        // The user left the photo page mid-send; now that the
+                        // transfer is done, close the session instead of
+                        // re-arming the camera off the photo page.
+                        pendingStopOnIdle = false
+                        mainHandler.postDelayed({ if (!destroyed) stopSelf() }, EXIT_AFTER_DONE_MILLIS)
+                    } else {
+                        // Stay armed on the photo page: next grab cycle in place.
+                        mainHandler.postDelayed({
+                            if (!destroyed) controller?.resetSession()
+                        }, EXIT_AFTER_DONE_MILLIS)
+                    }
                 } else {
                     armTimeout(EXIT_AFTER_DONE_MILLIS)
                 }
@@ -387,11 +397,18 @@ class GestureCaptureService : LifecycleService() {
             )
             val image = withTimeoutOrNull(FRAME_TIMEOUT_MILLIS) { frame.await() } ?: return null
             val bitmap = image.use { img ->
-                val buffer = img.planes[0].buffer
-                val out = Bitmap.createBitmap(img.width, img.height, Bitmap.Config.ARGB_8888)
+                val plane = img.planes[0]
+                val buffer = plane.buffer
                 buffer.rewind()
-                out.copyPixelsFromBuffer(buffer)
-                out
+                // Row stride may exceed width*4 (device padding): copy into a
+                // stride-wide bitmap first, then crop the real columns.
+                val rowStride = plane.rowStride
+                val pixelStride = plane.pixelStride
+                val strideWidth = rowStride / pixelStride
+                val raw = Bitmap.createBitmap(strideWidth, img.height, Bitmap.Config.ARGB_8888)
+                raw.copyPixelsFromBuffer(buffer)
+                if (strideWidth == img.width) raw
+                else Bitmap.createBitmap(raw, 0, 0, img.width, img.height)
             }
             val cropped = cropBitmap(bitmap, CaptureSessionContext.photoBounds)
             return saveCaptureToCache(cropped)
@@ -399,6 +416,16 @@ class GestureCaptureService : LifecycleService() {
             try { display?.release() } catch (_: Exception) {}
             try { reader?.close() } catch (_: Exception) {}
             try { projection.stop() } catch (_: Exception) {}
+            // Drop the mediaProjection FGS type again; the session continues
+            // as a plain camera service.
+            runCatching {
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildForegroundNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA,
+                )
+            }
         }
     }
 
@@ -511,6 +538,16 @@ class GestureCaptureService : LifecycleService() {
         var runningMode: String = AppSettings.CAMERA_MODE_ON_DEMAND
             private set
 
+        /** True while a grab's transfer is in flight. */
+        @Volatile
+        var sending: Boolean = false
+            private set
+
+        /** A stop was requested mid-send; run it once the transfer ends. */
+        @Volatile
+        var pendingStopOnIdle: Boolean = false
+            private set
+
         /** Launches a fresh direct-capture session in the given mode. */
         fun start(context: Context, mode: String = AppSettings.CAMERA_MODE_ON_DEMAND) {
             val intent = Intent(context, GestureCaptureService::class.java)
@@ -518,8 +555,13 @@ class GestureCaptureService : LifecycleService() {
             ContextCompat.startForegroundService(context, intent)
         }
 
-        /** Stops a running session (persistent mode leaves the photo page). */
+        /** Stops a running session (persistent mode leaves the photo page);
+         *  mid-send stops are deferred until the transfer finishes. */
         fun stop(context: Context) {
+            if (sending) {
+                pendingStopOnIdle = true
+                return
+            }
             context.stopService(Intent(context, GestureCaptureService::class.java))
         }
 

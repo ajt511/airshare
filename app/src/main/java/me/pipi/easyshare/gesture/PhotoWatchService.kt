@@ -60,6 +60,8 @@ class PhotoWatchService : AccessibilityService() {
                 GestureCaptureService.runningMode == AppSettings.CAMERA_MODE_PERSISTENT
             ) {
                 GestureCaptureService.stop(this)
+                // Allow returning to the same photo window to re-trigger.
+                lastWindowKey = null
             }
             return
         }

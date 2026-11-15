@@ -83,6 +83,7 @@ class IncomingTransferActivity : ComponentActivity() {
     // (decide() is idempotent — the first decision wins).
     // ------------------------------------------------------------------
     private var landmarker: HandLandmarkerHelper? = null
+    private var cameraProvider: ProcessCameraProvider? = null
     private val analysisExecutor = Executors.newSingleThreadExecutor()
     private var cameraPermissionGranted = false
     private var gestureCameraActive by mutableStateOf(false)
@@ -223,6 +224,7 @@ class IncomingTransferActivity : ComponentActivity() {
             future.addListener({
                 try {
                     val provider = future.get()
+                    cameraProvider = provider
                     landmarker?.close()
                     landmarker = HandLandmarkerHelper(
                         context = this,
@@ -281,6 +283,11 @@ class IncomingTransferActivity : ComponentActivity() {
         landmarker?.close()
         landmarker = null
         fistStableFrames = 0
+        // Fully release the camera (not just the recognizer) so the front
+        // camera indicator goes off while the transfer runs.
+        runCatching { cameraProvider?.unbindAll() }
+        cameraProvider = null
+        waveDetector.reset()
     }
 
     private fun onGestureFrame(frame: GestureFrame) {
