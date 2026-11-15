@@ -87,7 +87,12 @@ class IncomingTransferActivity : ComponentActivity() {
     private var cameraPermissionGranted = false
     private var gestureCameraActive by mutableStateOf(false)
     private var fistStableFrames = 0
-    private val waveDetector = HandWaveDetector(HandWaveDetector.Config()) { rejectGesture() }
+    private val waveDetector = HandWaveDetector(
+        HandWaveDetector.Config(),
+        object : HandWaveDetector.Listener {
+            override fun onWave() = rejectGesture()
+        },
+    )
 
     private val gestureCameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),

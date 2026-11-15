@@ -83,7 +83,6 @@ class GestureCaptureService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         sessionActive = true
-        runningMode = intent?.getStringExtra(EXTRA_MODE) ?: AppSettings.CAMERA_MODE_ON_DEMAND
         // Overlay FIRST: it gives this uid a visible window before the
         // camera-typed startForeground eligibility check runs.
         showBadge(getString(R.string.photo_gesture_badge_camera_start))
@@ -106,6 +105,11 @@ class GestureCaptureService : LifecycleService() {
         } else {
             IDLE_TIMEOUT_MILLIS
         }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.getStringExtra(EXTRA_MODE)?.let { runningMode = it }
+        return super.onStartCommand(intent, flags, startId)
+    }
 
     override fun onDestroy() {
         destroyed = true
@@ -366,7 +370,7 @@ class GestureCaptureService : LifecycleService() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
         )
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val projection = manager.getMediaProjection(resultCode, data)
+        val projection = manager.getMediaProjection(resultCode, data) ?: return null
         var reader: ImageReader? = null
         var display: android.hardware.display.VirtualDisplay? = null
         try {
