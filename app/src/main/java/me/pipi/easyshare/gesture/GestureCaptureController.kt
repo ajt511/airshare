@@ -75,11 +75,6 @@ class GestureCaptureController(
     private var selectedId: String? = null
     private var latestAllianceDevices: List<DiscoveredDevice> = emptyList()
 
-    private val gestureMachine = GestureStateMachine(
-        GestureStateMachine.Config(),
-        gestureListener,
-    )
-
     private val gestureListener = object : GestureStateMachine.Listener {
         override fun onPalmHeld() {
             phase(CapturePhase.Waiting)
@@ -128,6 +123,11 @@ class GestureCaptureController(
             if (content.isEmpty() && sendJob?.isActive != true) phase(CapturePhase.Waiting)
         }
     }
+
+    private val gestureMachine = GestureStateMachine(
+        GestureStateMachine.Config(),
+        gestureListener,
+    )
 
     private val tiltSelector = TiltSelector(
         TiltSelector.Config(),
