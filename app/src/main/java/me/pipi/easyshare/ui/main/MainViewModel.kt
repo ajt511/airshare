@@ -63,6 +63,7 @@ data class MainUiState(
     val pairedCount: Int = 0,
     val gestureReceiveConfirm: Boolean = true,
     val photoGesturePersistent: Boolean = false,
+    val gestureBackCamera: Boolean = false,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -101,6 +102,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             pairedCount = me.pipi.easyshare.pairing.AutoPairStore.count(context),
             gestureReceiveConfirm = settings.gestureReceiveConfirmEnabled,
             photoGesturePersistent = settings.photoGestureCameraMode == AppSettings.CAMERA_MODE_PERSISTENT,
+            gestureBackCamera = settings.gestureUseBackCamera,
         )
     )
     val state: StateFlow<MainUiState> = _state.asStateFlow()
@@ -346,6 +348,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         settings.photoGestureCameraMode =
             if (enabled) AppSettings.CAMERA_MODE_PERSISTENT else AppSettings.CAMERA_MODE_ON_DEMAND
         _state.value = _state.value.copy(photoGesturePersistent = enabled)
+    }
+
+    fun setGestureBackCamera(enabled: Boolean) {
+        settings.gestureUseBackCamera = enabled
+        _state.value = _state.value.copy(gestureBackCamera = enabled)
     }
 
     fun setEnhancedMode(enabled: Boolean) {

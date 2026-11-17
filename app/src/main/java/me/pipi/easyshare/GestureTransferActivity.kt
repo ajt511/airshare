@@ -20,7 +20,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
@@ -245,7 +244,8 @@ class GestureTransferActivity : ComponentActivity() {
                 }
                 provider.bindToLifecycle(
                     this,
-                    CameraSelector.DEFAULT_FRONT_CAMERA,
+                    // Lens facing follows the experimental rear-camera option.
+                    AppSettings(this).gestureCameraSelector,
                     *useCases.toTypedArray(),
                 )
                 // The bind succeeded — clear any transient error latched
@@ -307,7 +307,8 @@ class GestureTransferActivity : ComponentActivity() {
 }
 
 /**
- * Front-camera preview surface used as the gesture framing guide.
+ * Camera preview surface (lens follows the experimental setting) used as
+ * the gesture framing guide.
  * Deliberately does NOT bind camera use cases here: CameraX's
  * bindToLifecycle replaces all use cases for the lifecycle+camera pair, so
  * binding preview here would unbind the analysis stream bound by the

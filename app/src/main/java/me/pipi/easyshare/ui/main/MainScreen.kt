@@ -123,6 +123,7 @@ fun MainScreen(
     onClearAutoPair: () -> Unit = {},
     onGestureReceiveConfirmChanged: (Boolean) -> Unit = {},
     onPhotoGesturePersistentChanged: (Boolean) -> Unit = {},
+    onGestureBackCameraChanged: (Boolean) -> Unit = {},
 ) {
     var showNameDialog by rememberSaveable { mutableStateOf(false) }
     var showBrandDialog by rememberSaveable { mutableStateOf(false) }
@@ -319,6 +320,18 @@ fun MainScreen(
                 onClick = { onHapticsChanged(!state.haptics) },
                 trailing = {
                     Switch(checked = state.haptics, onCheckedChange = null)
+                },
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        SettingsCard {
+            NativeSettingItem(
+                title = stringResource(R.string.experimental_back_camera_title),
+                summary = stringResource(R.string.experimental_back_camera_summary),
+                checked = state.gestureBackCamera,
+                onClick = { onGestureBackCameraChanged(!state.gestureBackCamera) },
+                trailing = {
+                    Switch(checked = state.gestureBackCamera, onCheckedChange = null)
                 },
             )
         }

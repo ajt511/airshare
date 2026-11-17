@@ -220,4 +220,6 @@
     <string name="auto_pair_paired_count">已配对设备：%1$d 台</string>
     <string name="auto_pair_clear">清除全部配对记录</string>
     <string name="auto_pair_cleared">配对记录已清除</string>
+    <string name="experimental_back_camera_title">后置摄像头识别手势（实验性）</string>
+    <string name="experimental_back_camera_summary">改用后置摄像头进行隔空手势识别，作用于手势界面、看图即手势与接收确认弹窗；切换后在下一次相机会话生效</string>
 </resources>

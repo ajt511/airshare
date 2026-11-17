@@ -16,6 +16,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -287,9 +288,10 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
         }
         val deviceId = task.device.id
         var ok = false
-        val pollJob = currentCoroutineContext()[Job]
-        while (pollJob?.isActive == true && allianceBusy) {
-            val live = TransferUiCoordinator.states.value[deviceId]?.takeIf { it.taskId == task.id }
+        val states = TransferUiCoordinator.states
+        var seen = states.value
+        while (currentCoroutineContext().isActive && allianceBusy) {
+            val live = seen[deviceId]?.takeIf { it.taskId == task.id }
             if (live != null) {
                 when (live.status) {
                     TransferUiStatus.WAITING ->
@@ -303,7 +305,11 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
                     else -> allianceBusy = false
                 }
             }
-            delay(150)
+            if (allianceBusy) {
+                // Suspend until the coordinator publishes a change instead of
+                // waking every 150 ms; cancelSend() also cancels this job.
+                seen = states.first { it !== seen }
+            }
         }
         return ok
     }
@@ -382,6 +388,9 @@ class GestureTransferViewModel(application: Application) : AndroidViewModel(appl
             val live = TransferUiCoordinator.states.value[deviceId] ?: return
             P2pSenderService.cancelTask(getApplication(), live.taskId, deviceId)
             allianceBusy = false
+            // requestCancel() can be a no-op (already cancelled / not owner);
+            // cancelling the job guarantees the waiting send coroutine wakes up.
+            sendJob?.cancel()
             updatePhase(GesturePhase.Idle)
         }
     }

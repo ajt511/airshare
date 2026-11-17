@@ -25,7 +25,6 @@ import android.util.Log
 import android.util.Size
 import android.view.Gravity
 import android.view.WindowManager
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -247,9 +246,10 @@ class GestureCaptureService : LifecycleService() {
                     }
                 }
                 // Analysis-only bind: no Preview use case, no surface needed.
+                // Lens facing follows the experimental rear-camera option.
                 provider.bindToLifecycle(
                     this,
-                    CameraSelector.DEFAULT_FRONT_CAMERA,
+                    AppSettings(this).gestureCameraSelector,
                     analysis,
                 )
             } catch (error: Exception) {

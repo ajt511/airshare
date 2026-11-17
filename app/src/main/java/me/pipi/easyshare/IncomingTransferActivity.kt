@@ -17,7 +17,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -269,7 +268,8 @@ class IncomingTransferActivity : ComponentActivity() {
                     }
                     provider.bindToLifecycle(
                         this,
-                        CameraSelector.DEFAULT_FRONT_CAMERA,
+                        // Lens facing follows the experimental rear-camera option.
+                        AppSettings(this).gestureCameraSelector,
                         analysis,
                     )
                     gestureCameraActive = true
@@ -287,8 +287,8 @@ class IncomingTransferActivity : ComponentActivity() {
     private fun unbindGestureCamera() {
         gestureCameraActive = false
         fistStableFrames = 0
-        // Fully release the camera (not just the recognizer) so the front
-        // camera indicator goes off while the transfer runs, then close the
+        // Fully release the camera (not just the recognizer) so the camera
+        // indicator goes off while the transfer runs, then close the
         // native graph on the analysis executor after any in-flight frame.
         val helper = landmarker
         landmarker = null

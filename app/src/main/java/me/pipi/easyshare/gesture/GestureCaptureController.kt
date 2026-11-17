@@ -9,9 +9,10 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -247,6 +248,9 @@ class GestureCaptureController(
             val live = deviceId?.let { TransferUiCoordinator.states.value[it] }
             if (live != null) P2pSenderService.cancelTask(context, live.taskId, deviceId)
             allianceBusy = false
+            // requestCancel() can be a no-op (already cancelled / not owner);
+            // cancelling the job guarantees the waiting send coroutine wakes up.
+            sendJob?.cancel()
         }
         finish(false, CANCELLED_MESSAGE)
     }
@@ -281,9 +285,10 @@ class GestureCaptureController(
         }
         val deviceId = task.device.id
         var ok = false
-        val pollJob = kotlinx.coroutines.currentCoroutineContext()[Job]
-        while (pollJob?.isActive == true && allianceBusy) {
-            val live = TransferUiCoordinator.states.value[deviceId]?.takeIf { it.taskId == task.id }
+        val states = TransferUiCoordinator.states
+        var seen = states.value
+        while (currentCoroutineContext().isActive && allianceBusy) {
+            val live = seen[deviceId]?.takeIf { it.taskId == task.id }
             if (live != null) {
                 when (live.status) {
                     TransferUiStatus.WAITING ->
@@ -297,7 +302,11 @@ class GestureCaptureController(
                     else -> allianceBusy = false
                 }
             }
-            delay(150)
+            if (allianceBusy) {
+                // Suspend until the coordinator publishes a change instead of
+                // waking every 150 ms; cancel() also cancels this job.
+                seen = states.first { it !== seen }
+            }
         }
         return ok
     }

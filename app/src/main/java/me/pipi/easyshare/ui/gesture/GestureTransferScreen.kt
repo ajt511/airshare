@@ -40,8 +40,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -127,13 +130,20 @@ private fun GesturePhaseCard(state: GestureUiState) {
             R.string.gesture_hint_done_fail to false
         }
     }
-    val transition = rememberInfiniteTransition(label = "pulse")
-    val pulse by transition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
-        label = "pulseAlpha",
-    )
+    // The pulse only runs while highlighted, and its alpha is read in the draw
+    // phase: each frame redraws just the border instead of recomposing the
+    // whole card ~4 times per second.
+    val pulse = if (highlight) {
+        val transition = rememberInfiniteTransition(label = "pulse")
+        transition.animateFloat(
+            initialValue = 0.85f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+            label = "pulseAlpha",
+        )
+    } else {
+        null
+    }
     val borderColor by animateColorAsState(
         targetValue = if (highlight) MaterialTheme.colorScheme.primary else Color.Transparent,
         animationSpec = tween(200),
@@ -142,11 +152,16 @@ private fun GesturePhaseCard(state: GestureUiState) {
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = Color.Black.copy(alpha = 0.55f),
-        modifier = Modifier.border(
-            width = if (highlight) 2.dp else 0.dp,
-            color = borderColor.copy(alpha = if (highlight) pulse else 0f),
-            shape = RoundedCornerShape(20.dp),
-        ),
+        modifier = Modifier.drawBehind {
+            val borderAlpha = if (highlight) pulse?.value ?: 0f else 0f
+            if (borderAlpha > 0f) {
+                drawRoundRect(
+                    color = borderColor.copy(alpha = borderAlpha),
+                    cornerRadius = CornerRadius(20.dp.toPx()),
+                    style = Stroke(width = 2.dp.toPx()),
+                )
+            }
+        },
     ) {
         Text(
             text = stringResource(labelRes),

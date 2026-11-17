@@ -225,4 +225,6 @@
     <string name="auto_pair_paired_count">Paired devices: %1$d</string>
     <string name="auto_pair_clear">Clear all pairing records</string>
     <string name="auto_pair_cleared">Pairing records cleared</string>
+    <string name="experimental_back_camera_title">Rear camera for gestures (experimental)</string>
+    <string name="experimental_back_camera_summary">Recognize air gestures with the rear camera instead of the front one. Applies to the gesture screen, photo-page capture and the incoming confirmation; takes effect on the next camera session.</string>
 </resources>

@@ -2,6 +2,7 @@ package me.pipi.easyshare
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.camera.core.CameraSelector
 import androidx.core.content.edit
 import me.pipi.easyshare.utils.BleUtils
 import me.pipi.easyshare.utils.DeviceName
@@ -116,6 +117,27 @@ class AppSettings(private val context: Context) {
         get() = prefs.getBoolean("gestureReceiveConfirmEnabled", true)
         set(value) {
             prefs.edit { putBoolean("gestureReceiveConfirmEnabled", value) }
+        }
+
+    /**
+     * Experimental: recognize air gestures with the rear (back-facing)
+     * camera instead of the front one. Applies to the gesture screen,
+     * photo-page capture sessions and the incoming confirmation sheet;
+     * the selector is read once per camera session, so a change takes
+     * effect on the next session.
+     */
+    var gestureUseBackCamera: Boolean
+        get() = prefs.getBoolean("gestureUseBackCamera", false)
+        set(value) {
+            prefs.edit { putBoolean("gestureUseBackCamera", value) }
+        }
+
+    /** CameraX selector honoring [gestureUseBackCamera] (front camera default). */
+    val gestureCameraSelector: CameraSelector
+        get() = if (gestureUseBackCamera) {
+            CameraSelector.DEFAULT_BACK_CAMERA
+        } else {
+            CameraSelector.DEFAULT_FRONT_CAMERA
         }
 
     companion object {

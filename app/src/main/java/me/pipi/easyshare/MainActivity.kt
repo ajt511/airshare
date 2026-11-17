@@ -140,6 +140,7 @@ class MainActivity : ComponentActivity() {
                     onPhotoGestureSetup = ::startPhotoGestureSetup,
                     onGestureReceiveConfirmChanged = viewModel::setGestureReceiveConfirm,
                     onPhotoGesturePersistentChanged = viewModel::setPhotoGesturePersistent,
+                    onGestureBackCameraChanged = viewModel::setGestureBackCamera,
                     onAutoPairChanged = viewModel::setAutoPair,
                     onPairWindowChanged = viewModel::setPairWindow,
                     onClearAutoPair = {
